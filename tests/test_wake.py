@@ -7,7 +7,7 @@ from jarvis.wake import WakeWordListener
 
 @pytest.mark.asyncio
 async def test_listener_sets_event_on_detection():
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
     wake_event = asyncio.Event()
 
     mock_oww = MagicMock()
@@ -25,17 +25,17 @@ async def test_listener_sets_event_on_detection():
             mock_pyaudio_cls.return_value = mock_pa
 
             listener = WakeWordListener(wake_event, loop, threshold=0.5)
+            listener.start()
 
-            import threading
-            t = threading.Thread(target=listener._listen_loop, daemon=True)
-            t.start()
-            t.join(timeout=1.0)
+            # Give the thread time to run and call_soon_threadsafe to be processed
+            await asyncio.sleep(0.2)
 
     assert wake_event.is_set()
 
 
-def test_listener_ignores_low_confidence():
-    loop = asyncio.new_event_loop()
+@pytest.mark.asyncio
+async def test_listener_ignores_low_confidence():
+    loop = asyncio.get_running_loop()
     wake_event = asyncio.Event()
 
     mock_oww = MagicMock()
@@ -53,11 +53,8 @@ def test_listener_ignores_low_confidence():
             mock_pyaudio_cls.return_value = mock_pa
 
             listener = WakeWordListener(wake_event, loop, threshold=0.5)
+            listener.start()
 
-            import threading
-            t = threading.Thread(target=listener._listen_loop, daemon=True)
-            t.start()
-            t.join(timeout=1.0)
+            await asyncio.sleep(0.2)
 
     assert not wake_event.is_set()
-    loop.close()

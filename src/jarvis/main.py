@@ -83,7 +83,7 @@ async def main() -> None:
     conversation: list[dict] = []
     wake_event = asyncio.Event()
     interrupt = asyncio.Event()
-    loop = asyncio.get_event_loop()
+    loop = asyncio.get_running_loop()
 
     listener = await start_listener(wake_event, loop, settings.wake_model)
     print("[Jarvis] Listening for wake word... Say 'Hey Jarvis'!")

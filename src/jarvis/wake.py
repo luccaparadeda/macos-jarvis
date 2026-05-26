@@ -46,20 +46,13 @@ class WakeWordListener:
             frames_per_buffer=CHUNK_SIZE,
         )
         try:
-            max_seen = 0.0
             while self._running:
                 raw = stream.read(CHUNK_SIZE)
                 audio_data = np.frombuffer(raw, dtype=np.int16)
                 predictions = model.predict(audio_data)
                 for key, score in predictions.items():
-                    if score > max_seen:
-                        max_seen = score
-                        print(f"[Wake] New peak for '{key}': {score:.4f} (threshold: {self._threshold})")
-                    if score > 0.1 and score > max_seen - 0.05:
-                        print(f"[Wake] '{key}': {score:.4f}")
                     if score > self._threshold:
-                        print(f"[Wake] TRIGGERED! '{key}': {score:.4f}")
-                        self._wake_event._value = True
+                        print(f"[Wake] Detected! ({score:.2f})")
                         self._loop.call_soon_threadsafe(self._wake_event.set)
         except (KeyboardInterrupt, OSError):
             pass
