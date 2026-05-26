@@ -6,24 +6,30 @@ import sounddevice as sd
 
 from jarvis.config import Settings
 
-_tts_pipeline = None
+_model = None
 
 
-def _get_tts_pipeline(settings: Settings):
-    global _tts_pipeline
-    if _tts_pipeline is None:
-        from mlx_audio.tts import TTS
-        _tts_pipeline = TTS("mlx-community/Kokoro-82M-bf16")
-    return _tts_pipeline
+def _get_model(settings: Settings):
+    global _model
+    if _model is None:
+        from mlx_audio.tts import load_model
+        _model = load_model(settings.kokoro_model)
+    return _model
 
 
 def _generate_audio(text: str, settings: Settings) -> tuple[np.ndarray, int]:
-    tts = _get_tts_pipeline(settings)
-    result = tts.generate(text=text)
-    audio = result["audio"]
-    sample_rate = result["sample_rate"]
-    if not isinstance(audio, np.ndarray):
-        audio = np.array(audio, dtype=np.float32)
+    model = _get_model(settings)
+    results = list(model.generate(text))
+    if not results:
+        return np.array([], dtype=np.float32), 24000
+
+    audio_chunks = []
+    sample_rate = 24000
+    for r in results:
+        sample_rate = r.sample_rate
+        audio_chunks.append(np.array(r.audio, dtype=np.float32))
+
+    audio = np.concatenate(audio_chunks) if len(audio_chunks) > 1 else audio_chunks[0]
     return audio, sample_rate
 
 
