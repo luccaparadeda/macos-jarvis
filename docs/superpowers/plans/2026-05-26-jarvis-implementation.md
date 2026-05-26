@@ -444,6 +444,314 @@ git commit -m "feat: add Apple Shortcuts discovery and execution"
 
 ---
 
+### Task 3b: System Tools — open, mdfind, Mole
+
+**Files:**
+- Modify: `src/jarvis/hands.py`
+- Modify: `tests/test_hands.py`
+
+Extends hands.py with three new system tool functions and their tool schemas.
+
+- [ ] **Step 1: Write the failing tests**
+
+Append to `tests/test_hands.py`:
+
+```python
+from jarvis.hands import (
+    open_item, search_files, system_maintenance,
+    build_open_tool_schema, build_search_tool_schema, build_maintenance_tool_schema,
+)
+
+
+@pytest.mark.asyncio
+async def test_open_item_app():
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (b"", b"")
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
+        result = await open_item("Spotify")
+
+    assert "opened" in result.lower() or result == ""
+    mock_exec.assert_called_once_with(
+        "open", "-a", "Spotify",
+        stdout=-1, stderr=-1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_open_item_file_with_app():
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (b"", b"")
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
+        result = await open_item("/Users/test/doc.numbers", with_app="Numbers")
+
+    mock_exec.assert_called_once_with(
+        "open", "-a", "Numbers", "/Users/test/doc.numbers",
+        stdout=-1, stderr=-1,
+    )
+
+
+@pytest.mark.asyncio
+async def test_open_item_failure():
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (b"", b"The file does not exist.")
+    mock_process.returncode = 1
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+        result = await open_item("/nonexistent/file.txt")
+
+    assert result.startswith("Error:")
+
+
+@pytest.mark.asyncio
+async def test_search_files():
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (
+        b"/Users/test/invoice.pdf\n/Users/test/Downloads/invoice2.pdf\n",
+        b"",
+    )
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
+        result = await search_files("name:invoice.pdf")
+
+    assert "/Users/test/invoice.pdf" in result
+    assert "/Users/test/Downloads/invoice2.pdf" in result
+
+
+@pytest.mark.asyncio
+async def test_search_files_no_results():
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (b"", b"")
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process):
+        result = await search_files("name:nonexistent_file_xyz.pdf")
+
+    assert "no files found" in result.lower()
+
+
+@pytest.mark.asyncio
+async def test_system_maintenance_dry_run():
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (b"Would remove 2.3GB of cache files", b"")
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
+        result = await system_maintenance("clean", dry_run=True)
+
+    assert "2.3GB" in result
+    args = mock_exec.call_args[0]
+    assert "--dry-run" in args
+
+
+@pytest.mark.asyncio
+async def test_system_maintenance_status():
+    mock_process = AsyncMock()
+    mock_process.communicate.return_value = (b"CPU: 12% | Memory: 8.2GB/16GB", b"")
+    mock_process.returncode = 0
+
+    with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
+        result = await system_maintenance("status")
+
+    assert "CPU" in result
+    args = mock_exec.call_args[0]
+    assert "--dry-run" not in args  # status is non-destructive
+
+
+def test_build_open_tool_schema():
+    schema = build_open_tool_schema()
+    assert schema["function"]["name"] == "open_item"
+    assert "path_or_app" in schema["function"]["parameters"]["properties"]
+
+
+def test_build_search_tool_schema():
+    schema = build_search_tool_schema()
+    assert schema["function"]["name"] == "search_files"
+    assert "query" in schema["function"]["parameters"]["properties"]
+
+
+def test_build_maintenance_tool_schema():
+    schema = build_maintenance_tool_schema()
+    assert schema["function"]["name"] == "system_maintenance"
+    props = schema["function"]["parameters"]["properties"]
+    assert "action" in props
+    assert "dry_run" in props
+    assert props["action"]["enum"] == ["clean", "analyze", "status", "purge", "optimize"]
+```
+
+- [ ] **Step 2: Run test to verify new tests fail**
+
+```bash
+uv run pytest tests/test_hands.py -v
+```
+
+Expected: New tests fail with `ImportError` (functions not defined yet). Old tests still pass.
+
+- [ ] **Step 3: Add implementations to hands.py**
+
+Append to `src/jarvis/hands.py`:
+
+```python
+DESTRUCTIVE_ACTIONS = {"clean", "purge", "optimize"}
+NON_DESTRUCTIVE_ACTIONS = {"analyze", "status"}
+
+
+def build_open_tool_schema() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "open_item",
+            "description": (
+                "Open a file, folder, or application on macOS. "
+                "Like double-clicking in Finder."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "path_or_app": {
+                        "type": "string",
+                        "description": "File path, folder path, or application name to open",
+                    },
+                    "with_app": {
+                        "type": "string",
+                        "description": "Optional: open the file with a specific application",
+                    },
+                },
+                "required": ["path_or_app"],
+            },
+        },
+    }
+
+
+def build_search_tool_schema() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "search_files",
+            "description": (
+                "Search for files on macOS using Spotlight (mdfind). "
+                "Searches file names and contents instantly."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Search query — file name, content keywords, or metadata filter "
+                            "(e.g. 'name:invoice.pdf', 'kMDItemContentType=com.adobe.pdf')"
+                        ),
+                    },
+                },
+                "required": ["query"],
+            },
+        },
+    }
+
+
+def build_maintenance_tool_schema() -> dict:
+    return {
+        "type": "function",
+        "function": {
+            "name": "system_maintenance",
+            "description": (
+                "Run Mac system maintenance using Mole (mo). "
+                "Clean caches, analyze disk usage, check system status, or purge build artifacts. "
+                "Destructive commands default to dry-run mode for safety."
+            ),
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "action": {
+                        "type": "string",
+                        "enum": ["clean", "analyze", "status", "purge", "optimize"],
+                    },
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": (
+                            "If true (default), show what would be done without doing it. "
+                            "Set false only with explicit user confirmation."
+                        ),
+                    },
+                },
+                "required": ["action"],
+            },
+        },
+    }
+
+
+async def open_item(path_or_app: str, with_app: str | None = None) -> str:
+    if with_app:
+        cmd = ["open", "-a", with_app, path_or_app]
+    else:
+        cmd = ["open", "-a", path_or_app]
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        return f"Error: {stderr.decode().strip()}"
+    return f"Opened {path_or_app}"
+
+
+async def search_files(query: str) -> str:
+    proc = await asyncio.create_subprocess_exec(
+        "mdfind", query,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+
+    output = stdout.decode().strip()
+    if not output:
+        return "No files found."
+
+    lines = output.splitlines()[:20]
+    return "\n".join(lines)
+
+
+async def system_maintenance(action: str, dry_run: bool = True) -> str:
+    cmd = ["mo", action]
+    if action in DESTRUCTIVE_ACTIONS and dry_run:
+        cmd.append("--dry-run")
+
+    proc = await asyncio.create_subprocess_exec(
+        *cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+    )
+    stdout, stderr = await proc.communicate()
+
+    if proc.returncode != 0:
+        return f"Error: {stderr.decode().strip()}"
+    return stdout.decode().strip()
+```
+
+- [ ] **Step 4: Run tests to verify they pass**
+
+```bash
+uv run pytest tests/test_hands.py -v
+```
+
+Expected: All tests pass (original 6 + new 10 = 16 total).
+
+- [ ] **Step 5: Commit**
+
+```bash
+git add src/jarvis/hands.py tests/test_hands.py
+git commit -m "feat: add system tools — open, mdfind, and Mole maintenance"
+```
+
+---
+
 ### Task 4: Audio Recording with Silence Detection
 
 **Files:**
@@ -1067,6 +1375,24 @@ def needs_vision(text: str, settings: Settings) -> bool:
     return any(kw in lower for kw in settings.vision_keywords)
 
 
+async def _execute_tool(name: str, args: dict) -> str:
+    if name == "run_apple_shortcut":
+        return await hands.run_shortcut(
+            args["shortcut_name"], input_text=args.get("input_text")
+        )
+    elif name == "open_item":
+        return await hands.open_item(
+            args["path_or_app"], with_app=args.get("with_app")
+        )
+    elif name == "search_files":
+        return await hands.search_files(args["query"])
+    elif name == "system_maintenance":
+        return await hands.system_maintenance(
+            args["action"], dry_run=args.get("dry_run", True)
+        )
+    return f"Unknown tool: {name}"
+
+
 async def think_and_act(
     text: str,
     image: str | None,
@@ -1140,10 +1466,7 @@ async def think_and_act(
                 return ""
 
             args = json.loads(tc.function.arguments)
-            result = await hands.run_shortcut(
-                args["shortcut_name"],
-                input_text=args.get("input_text"),
-            )
+            result = await _execute_tool(tc.function.name, args)
 
             tool_msg = {
                 "role": "tool",
@@ -1636,7 +1959,10 @@ from jarvis.brain import needs_vision, think_and_act
 from jarvis.config import Settings
 from jarvis.ears import transcribe
 from jarvis.eyes import capture
-from jarvis.hands import discover_shortcuts, build_tool_schema
+from jarvis.hands import (
+    discover_shortcuts, build_tool_schema,
+    build_open_tool_schema, build_search_tool_schema, build_maintenance_tool_schema,
+)
 from jarvis.mouth import speak
 from jarvis.wake import start_listener, stop_listener
 
@@ -1695,7 +2021,16 @@ async def main() -> None:
     print("[Jarvis] Loading models and discovering shortcuts...")
 
     shortcut_names = await discover_shortcuts()
-    tools = [build_tool_schema(shortcut_names)] if shortcut_names else []
+    tools = [
+        build_tool_schema(shortcut_names),
+        build_open_tool_schema(),
+        build_search_tool_schema(),
+        build_maintenance_tool_schema(),
+    ] if shortcut_names else [
+        build_open_tool_schema(),
+        build_search_tool_schema(),
+        build_maintenance_tool_schema(),
+    ]
     print(f"[Jarvis] Found {len(shortcut_names)} shortcuts.")
 
     conversation: list[dict] = []

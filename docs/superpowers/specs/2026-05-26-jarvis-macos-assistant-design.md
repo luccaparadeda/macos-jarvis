@@ -166,11 +166,20 @@ System prompt establishes Jarvis personality and describes available shortcuts.
 ```python
 async def discover_shortcuts() -> list[dict]
 async def run_shortcut(name: str, input_text: str | None = None) -> str
+async def open_item(path_or_app: str, with_app: str | None = None) -> str
+async def search_files(query: str) -> str
+async def system_maintenance(action: str, dry_run: bool = True) -> str
 ```
 
 `discover_shortcuts`: Runs `shortcuts list`, parses output, generates a single OpenAI-compatible tool schema with `shortcut_name` as an enum.
 
 `run_shortcut`: Executes `shortcuts run <name> [--input-text <text>]` via `asyncio.create_subprocess_exec`. Returns stdout on success, stderr on failure.
+
+`open_item`: Executes `open <path_or_app>` or `open -a <app> <path>` to launch apps/files. Returns confirmation or error.
+
+`search_files`: Executes `mdfind <query>` (Spotlight search) to find files by name or content. Returns list of matching paths (limited to 20 results).
+
+`system_maintenance`: Executes Mole (`mo`) commands for system maintenance — `mo clean`, `mo analyze`, `mo status`, `mo purge`. Always defaults to `--dry-run` for destructive operations unless explicitly overridden.
 
 ### mouth.py
 
@@ -180,7 +189,11 @@ async def speak(text: str, interrupt: asyncio.Event, settings: Settings) -> None
 
 Generates audio via Kokoro/mlx-audio in a thread executor. Plays via `sounddevice.play()`. Monitors `interrupt` during playback; calls `sounddevice.stop()` if set.
 
-## 7. Dynamic Shortcut Discovery
+## 7. Tool System
+
+Jarvis has multiple tool types available to DeepSeek. All are registered as OpenAI-compatible function tools.
+
+### 7.1 Dynamic Shortcut Discovery
 
 At startup, `hands.discover_shortcuts()` queries all available shortcuts and generates a tool schema:
 
@@ -209,6 +222,86 @@ At startup, `hands.discover_shortcuts()` queries all available shortcuts and gen
 ```
 
 Shortcut list refreshes every 10 minutes or on execution failure.
+
+### 7.2 App & File Launching (`open`)
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "open_item",
+    "description": "Open a file, folder, or application on macOS. Like double-clicking in Finder.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "path_or_app": {
+          "type": "string",
+          "description": "File path, folder path, or application name to open"
+        },
+        "with_app": {
+          "type": "string",
+          "description": "Optional: open the file with a specific application"
+        }
+      },
+      "required": ["path_or_app"]
+    }
+  }
+}
+```
+
+Examples: `open -a Spotify`, `open /Users/name/Documents/budget.numbers`, `open -a "Visual Studio Code" ./project`
+
+### 7.3 Deep System Search (`mdfind` / Spotlight)
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "search_files",
+    "description": "Search for files on macOS using Spotlight (mdfind). Searches file names and contents instantly.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "type": "string",
+          "description": "Search query — file name, content keywords, or metadata filter (e.g. 'name:invoice.pdf', 'kMDItemContentType=com.adobe.pdf')"
+        }
+      },
+      "required": ["query"]
+    }
+  }
+}
+```
+
+Returns up to 20 matching file paths. The AI can then `open_item` on any result.
+
+### 7.4 System Maintenance (`mo` / Mole)
+
+```json
+{
+  "type": "function",
+  "function": {
+    "name": "system_maintenance",
+    "description": "Run Mac system maintenance using Mole (mo). Clean caches, analyze disk usage, check system status, or purge build artifacts. Destructive commands default to dry-run mode for safety.",
+    "parameters": {
+      "type": "object",
+      "properties": {
+        "action": {
+          "type": "string",
+          "enum": ["clean", "analyze", "status", "purge", "optimize"]
+        },
+        "dry_run": {
+          "type": "boolean",
+          "description": "If true (default), show what would be done without doing it. Set false only with explicit user confirmation."
+        }
+      },
+      "required": ["action"]
+    }
+  }
+}
+```
+
+Safety: `dry_run` defaults to `true`. The brain must confirm with the user before running destructive operations (`clean`, `purge`, `optimize`) with `dry_run=false`.
 
 ## 8. Conversation Context
 
