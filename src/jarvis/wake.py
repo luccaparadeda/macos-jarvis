@@ -35,7 +35,7 @@ class WakeWordListener:
             self._thread.join(timeout=2.0)
 
     def _listen_loop(self) -> None:
-        model = Model(wakeword_models=[self._model_name])
+        model = Model(wakeword_models=[self._model_name], inference_framework="onnx")
         pa = PyAudio()
         stream = pa.open(
             rate=SAMPLE_RATE,
