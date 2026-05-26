@@ -19,8 +19,13 @@ async def pipeline_iteration(
     tools: list[dict],
     conversation: list[dict],
     settings: Settings,
+    listener=None,
 ) -> None:
+    if listener:
+        listener.pause()
     audio_buf = await record_until_silence(interrupt, settings)
+    if listener:
+        listener.resume()
     if interrupt.is_set():
         return
 
@@ -95,7 +100,7 @@ async def main() -> None:
             interrupt.clear()
             print("[Jarvis] Wake word detected!")
 
-            await pipeline_iteration(interrupt, tools, conversation, settings)
+            await pipeline_iteration(interrupt, tools, conversation, settings, listener)
             print("[Jarvis] Ready for next command.")
     except KeyboardInterrupt:
         print("\n[Jarvis] Shutting down...")

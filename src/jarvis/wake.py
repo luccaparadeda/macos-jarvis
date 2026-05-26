@@ -2,12 +2,11 @@ import asyncio
 import threading
 
 import numpy as np
+import sounddevice as sd
 from openwakeword import Model
-from pyaudio import PyAudio
 
 CHUNK_SIZE = 1280
 SAMPLE_RATE = 16000
-FORMAT_WIDTH = 2
 
 
 class WakeWordListener:
@@ -22,8 +21,10 @@ class WakeWordListener:
         self._loop = loop
         self._model_name = model_name
         self._threshold = threshold
-        self._running = True
+        self._running = False
+        self._paused = False
         self._thread: threading.Thread | None = None
+        self._model: Model | None = None
 
     def start(self) -> None:
         self._running = True
@@ -35,30 +36,40 @@ class WakeWordListener:
         if self._thread:
             self._thread.join(timeout=2.0)
 
+    def pause(self) -> None:
+        self._paused = True
+
+    def resume(self) -> None:
+        self._paused = False
+        if self._model:
+            self._model.reset()
+
     def _listen_loop(self) -> None:
-        model = Model(wakeword_models=[self._model_name], inference_framework="onnx")
-        pa = PyAudio()
-        stream = pa.open(
-            rate=SAMPLE_RATE,
-            channels=1,
-            format=pa.get_format_from_width(FORMAT_WIDTH),
-            input=True,
-            frames_per_buffer=CHUNK_SIZE,
-        )
+        self._model = Model(wakeword_models=[self._model_name], inference_framework="onnx")
+
+        def audio_callback(indata, frames, time_info, status):
+            if self._paused or not self._running:
+                return
+
+            audio_data = (indata[:, 0] * 32767).astype(np.int16)
+            predictions = self._model.predict(audio_data)
+            for key, score in predictions.items():
+                if score > self._threshold:
+                    print(f"[Wake] Detected! ({score:.2f})")
+                    self._loop.call_soon_threadsafe(self._wake_event.set)
+
         try:
-            while self._running:
-                raw = stream.read(CHUNK_SIZE)
-                audio_data = np.frombuffer(raw, dtype=np.int16)
-                predictions = model.predict(audio_data)
-                for key, score in predictions.items():
-                    if score > self._threshold:
-                        print(f"[Wake] Detected! ({score:.2f})")
-                        self._loop.call_soon_threadsafe(self._wake_event.set)
+            with sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=1,
+                blocksize=CHUNK_SIZE,
+                dtype="float32",
+                callback=audio_callback,
+            ):
+                while self._running:
+                    sd.sleep(100)
         except (KeyboardInterrupt, OSError):
             pass
-        finally:
-            stream.close()
-            pa.terminate()
 
 
 async def start_listener(

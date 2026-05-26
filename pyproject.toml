@@ -12,7 +12,6 @@ dependencies = [
     "sounddevice",
     "numpy",
     "pydantic-settings",
-    "pyaudio",
     "misaki[en]>=0.9.4",
     "num2words>=0.5.14",
 ]
