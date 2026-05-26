@@ -1,6 +1,7 @@
 import asyncio
 import threading
 
+import numpy as np
 from openwakeword import Model
 from pyaudio import PyAudio
 
@@ -46,7 +47,8 @@ class WakeWordListener:
         )
         try:
             while self._running:
-                audio_data = stream.read(CHUNK_SIZE)
+                raw = stream.read(CHUNK_SIZE)
+                audio_data = np.frombuffer(raw, dtype=np.int16)
                 predictions = model.predict(audio_data)
                 for key, score in predictions.items():
                     if score > self._threshold:
