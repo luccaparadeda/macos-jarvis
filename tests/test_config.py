@@ -16,7 +16,8 @@ def test_settings_defaults():
     assert settings.kokoro_model == "mlx-community/Kokoro-82M-bf16"
     assert settings.wake_model == "hey_jarvis"
     assert settings.camera_index == 0
-    assert settings.silence_threshold == 0.01
+    assert settings.silence_threshold == 0.0
+    assert settings.silence_multiplier == 3.0
     assert settings.silence_duration == 1.5
     assert "look" in settings.vision_keywords
     assert "see" in settings.vision_keywords

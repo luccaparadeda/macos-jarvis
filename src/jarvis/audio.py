@@ -9,7 +9,7 @@ from jarvis.config import Settings
 SAMPLE_RATE = 16000
 CHANNELS = 1
 BLOCK_SIZE = 1600
-MIN_RECORD_SECONDS = 0.5
+CALIBRATION_CHUNKS = 5
 
 
 async def record_until_silence(interrupt: asyncio.Event, settings: Settings) -> np.ndarray:
@@ -20,34 +20,38 @@ async def record_until_silence(interrupt: asyncio.Event, settings: Settings) -> 
     heard_voice = False
     last_voice_time = time.monotonic()
 
-    chunk_count = 0
+    calibration_samples: list[float] = []
+    threshold = settings.silence_threshold if settings.silence_threshold > 0 else None
 
     def callback(indata, frames, time_info, status):
-        nonlocal last_voice_time, heard_voice, chunk_count
-        chunk_count += 1
+        nonlocal last_voice_time, heard_voice, threshold
         if interrupt.is_set():
             loop.call_soon_threadsafe(recording_done.set)
             return
 
         chunk = indata[:, 0].copy()
-        chunks.append(chunk)
-
         amplitude = np.abs(chunk).mean()
         now = time.monotonic()
 
-        if chunk_count <= 3 or (chunk_count % 50 == 0):
-            print(f"[Audio] chunk {chunk_count}: amplitude={amplitude:.6f} threshold={settings.silence_threshold}")
+        if threshold is None:
+            calibration_samples.append(amplitude)
+            if len(calibration_samples) >= CALIBRATION_CHUNKS:
+                ambient = np.mean(calibration_samples)
+                threshold = ambient * settings.silence_multiplier
+                print(f"[Audio] Calibrated: ambient={ambient:.4f}, threshold={threshold:.4f}")
+            return
 
-        if amplitude > settings.silence_threshold:
+        chunks.append(chunk)
+
+        if amplitude > threshold:
             last_voice_time = now
             if not heard_voice:
-                print(f"[Audio] Voice detected! amplitude={amplitude:.4f}")
+                print(f"[Audio] Voice detected! (amplitude={amplitude:.4f})")
             heard_voice = True
         elif heard_voice and now - last_voice_time > settings.silence_duration:
-            print(f"[Audio] Silence detected, stopping recording.")
             loop.call_soon_threadsafe(recording_done.set)
         elif not heard_voice and now - start_time > 5.0:
-            print(f"[Audio] No voice detected after 5s, giving up.")
+            print("[Audio] No voice detected after 5s, giving up.")
             loop.call_soon_threadsafe(recording_done.set)
 
     if interrupt.is_set():

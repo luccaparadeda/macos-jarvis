@@ -9,7 +9,8 @@ class Settings(BaseSettings):
     kokoro_model: str = "mlx-community/Kokoro-82M-bf16"
     wake_model: str = "hey_jarvis"
     camera_index: int = 0
-    silence_threshold: float = 0.01
+    silence_threshold: float = 0.0
+    silence_multiplier: float = 3.0
     silence_duration: float = 1.5
     vision_keywords: list[str] = [
         "look",
