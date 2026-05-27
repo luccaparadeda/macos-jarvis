@@ -124,7 +124,9 @@ async def think_and_act(
             if interrupt.is_set():
                 return ""
 
+            print(f"  [Brain] Tool call: {block.name}({json.dumps(block.input, ensure_ascii=False)[:120]})")
             result = await _execute_tool(block.name, block.input)
+            print(f"  [Brain] Tool result: {result[:120]}")
             tool_results.append({
                 "type": "tool_result",
                 "tool_use_id": block.id,

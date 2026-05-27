@@ -1,5 +1,6 @@
 import asyncio
 import sys
+import time
 
 from jarvis.audio import record_until_silence
 from jarvis.brain import needs_vision, think_and_act
@@ -14,6 +15,11 @@ from jarvis.mouth import speak
 from jarvis.wake import start_listener, stop_listener
 
 
+def _log(stage: str, msg: str, start: float | None = None):
+    elapsed = f" ({time.monotonic() - start:.1f}s)" if start else ""
+    print(f"  [{stage}]{elapsed} {msg}")
+
+
 async def pipeline_iteration(
     interrupt: asyncio.Event,
     tools: list[dict],
@@ -21,6 +27,10 @@ async def pipeline_iteration(
     settings: Settings,
     listener=None,
 ) -> None:
+    t0 = time.monotonic()
+
+    # 1. Record
+    _log("Mic", "Pausing wake word, recording...")
     if listener:
         listener.pause()
     audio_buf = await record_until_silence(interrupt, settings)
@@ -29,23 +39,33 @@ async def pipeline_iteration(
     if interrupt.is_set():
         return
 
+    duration_s = len(audio_buf) / 16000
+    _log("Mic", f"Got {duration_s:.1f}s of audio", t0)
+
+    # 2. Transcribe
+    t1 = time.monotonic()
+    _log("STT", "Transcribing...")
     text = await transcribe(audio_buf, settings)
     if interrupt.is_set():
         return
 
     if not text.strip():
+        _log("STT", "Empty transcription, nothing heard", t1)
         await speak("I didn't catch that.", interrupt, settings)
         return
 
-    print(f"[Jarvis] Heard: {text}")
+    _log("STT", f'"{text}"', t1)
 
+    # 3. Vision check
     image = None
     if needs_vision(text, settings):
+        t2 = time.monotonic()
+        _log("Eyes", "Vision keywords detected, capturing camera...")
         try:
             image = await capture(settings)
-            print("[Jarvis] Captured image.")
+            _log("Eyes", "Image captured", t2)
         except RuntimeError as e:
-            print(f"[Jarvis] Camera error: {e}")
+            _log("Eyes", f"Camera error: {e}", t2)
             await speak("I can't see right now.", interrupt, settings)
             if interrupt.is_set():
                 return
@@ -53,19 +73,29 @@ async def pipeline_iteration(
     if interrupt.is_set():
         return
 
+    # 4. Think
+    t3 = time.monotonic()
+    _log("Brain", f"Sending to Claude ({settings.anthropic_model})...")
     try:
         response = await think_and_act(text, image, interrupt, tools, conversation, settings)
     except Exception as e:
-        print(f"[Jarvis] Brain error: {e}")
+        _log("Brain", f"ERROR: {e}", t3)
         await speak("I couldn't reach my brain, try again.", interrupt, settings)
         return
 
     if interrupt.is_set():
         return
 
+    _log("Brain", f'"{response[:80]}{"..." if len(response) > 80 else ""}"', t3)
+
+    # 5. Speak
     if response:
-        print(f"[Jarvis] Says: {response}")
+        t4 = time.monotonic()
+        _log("TTS", "Generating speech...")
         await speak(response, interrupt, settings)
+        _log("TTS", "Done speaking", t4)
+
+    _log("Total", "Pipeline complete", t0)
 
 
 async def main() -> None:
@@ -83,7 +113,8 @@ async def main() -> None:
         build_search_tool_schema(),
         build_maintenance_tool_schema(),
     ]
-    print(f"[Jarvis] Found {len(shortcut_names)} shortcuts.")
+    print(f"[Jarvis] Found {len(shortcut_names)} shortcuts: {', '.join(shortcut_names)}")
+    print(f"[Jarvis] Brain: {settings.anthropic_model}")
 
     conversation: list[dict] = []
     wake_event = asyncio.Event()
@@ -92,16 +123,17 @@ async def main() -> None:
 
     listener = await start_listener(wake_event, loop, settings.wake_model)
     print("[Jarvis] Listening for wake word... Say 'Hey Jarvis'!")
+    print()
 
     try:
         while True:
             await wake_event.wait()
             wake_event.clear()
             interrupt.clear()
-            print("[Jarvis] Wake word detected!")
+            print(">>> Wake word detected!")
 
             await pipeline_iteration(interrupt, tools, conversation, settings, listener)
-            print("[Jarvis] Ready for next command.")
+            print()
     except KeyboardInterrupt:
         print("\n[Jarvis] Shutting down...")
     finally:
