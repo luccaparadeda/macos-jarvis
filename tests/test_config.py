@@ -11,7 +11,7 @@ def test_settings_loads_from_env(monkeypatch):
 
 def test_settings_defaults():
     settings = Settings(anthropic_api_key="k")
-    assert settings.whisper_model == "mlx-community/whisper-tiny"
+    assert settings.whisper_model == "mlx-community/whisper-large-v3-turbo"
     assert settings.kokoro_model == "mlx-community/Kokoro-82M-bf16"
     assert settings.wake_model == "hey_jarvis"
     assert settings.camera_index == 0

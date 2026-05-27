@@ -4,7 +4,7 @@ from pydantic_settings import BaseSettings
 class Settings(BaseSettings):
     anthropic_api_key: str
     anthropic_model: str = "claude-haiku-4-5-20251001"
-    whisper_model: str = "mlx-community/whisper-tiny"
+    whisper_model: str = "mlx-community/whisper-large-v3-turbo"
     kokoro_model: str = "mlx-community/Kokoro-82M-bf16"
     wake_model: str = "hey_jarvis"
     camera_index: int = 0
