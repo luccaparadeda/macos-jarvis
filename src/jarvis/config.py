@@ -3,7 +3,7 @@ from pydantic_settings import BaseSettings
 
 class Settings(BaseSettings):
     anthropic_api_key: str
-    anthropic_model: str = "claude-sonnet-4-6-20250627"
+    anthropic_model: str = "claude-haiku-4-5-20251001"
     whisper_model: str = "mlx-community/whisper-tiny"
     kokoro_model: str = "mlx-community/Kokoro-82M-bf16"
     wake_model: str = "hey_jarvis"
