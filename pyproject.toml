@@ -2,6 +2,7 @@
 name = "jarvis"
 version = "0.1.0"
 description = "Streamlined macOS Spatial Voice Assistant"
+license = "MIT"
 requires-python = ">=3.11"
 dependencies = [
     "openwakeword",

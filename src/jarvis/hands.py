@@ -118,7 +118,7 @@ async def open_item(path_or_app: str, with_app: str | None = None) -> str:
     if with_app:
         cmd = ["open", "-a", with_app, path_or_app]
     else:
-        cmd = ["open", "-a", path_or_app]
+        cmd = ["open", path_or_app]
     proc = await asyncio.create_subprocess_exec(*cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = await proc.communicate()
     if proc.returncode != 0:
