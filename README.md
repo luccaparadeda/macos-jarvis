@@ -23,26 +23,47 @@ Audio processing stays entirely on-device. Only text prompts and camera frames a
 
 ## Requirements
 
-- macOS on Apple Silicon (M1+)
+- macOS 13.5+ on Apple Silicon (M1+)
 - Python 3.11+
-- [uv](https://docs.astral.sh/uv/) (recommended) or pip
 - An [Anthropic API key](https://console.anthropic.com/)
 - Microphone access
 
-## Setup
+## Install
+
+### One-liner
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/luccaparadeda/macos-jarvis/main/install.sh | bash
+```
+
+### Homebrew
+
+```bash
+brew tap luccaparadeda/tap
+brew install macos-jarvis
+```
+
+### PyPI
+
+```bash
+pip install macos-jarvis
+```
+
+### From source
 
 ```bash
 git clone https://github.com/luccaparadeda/macos-jarvis.git
 cd macos-jarvis
-
-# Install with uv
-uv sync
-
-# Or with pip
-pip install -e .
+uv sync  # or: pip install -e .
 ```
 
-Create a `.env` file:
+Then set your API key:
+
+```bash
+export ANTHROPIC_API_KEY="sk-ant-..."
+```
+
+Or create a `.env` file in the project directory:
 
 ```
 ANTHROPIC_API_KEY=sk-ant-...
@@ -96,6 +117,10 @@ src/jarvis/
 ```
 
 The pipeline is fully async. Wake word detection runs on a background thread, and heavy model inference is offloaded to thread executors to keep the event loop responsive.
+
+## Contributing
+
+See [CONTRIBUTING.md](.github/CONTRIBUTING.md) for setup and guidelines.
 
 ## License
 

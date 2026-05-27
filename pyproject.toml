@@ -1,9 +1,29 @@
 [project]
-name = "jarvis"
+name = "macos-jarvis"
 version = "0.1.0"
-description = "Streamlined macOS Spatial Voice Assistant"
+description = "Voice-controlled macOS assistant on Apple Silicon — local wake word, STT, and TTS with Claude for reasoning"
 license = "MIT"
+readme = "README.md"
 requires-python = ">=3.11"
+authors = [{ name = "Lucca Paradeda", email = "luccaparadedaprofessional@gmail.com" }]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Environment :: MacOS X",
+    "Intended Audience :: Developers",
+    "License :: OSI Approved :: MIT License",
+    "Operating System :: MacOS",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Multimedia :: Sound/Audio :: Speech",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+
+[project.urls]
+Homepage = "https://github.com/luccaparadeda/macos-jarvis"
+Repository = "https://github.com/luccaparadeda/macos-jarvis"
+Issues = "https://github.com/luccaparadeda/macos-jarvis/issues"
 dependencies = [
     "openwakeword",
     "mlx-whisper",
