@@ -9,7 +9,7 @@ from jarvis.config import Settings
 
 
 def _make_settings(**kwargs) -> Settings:
-    defaults = {"deepseek_api_key": "k", "camera_index": 0}
+    defaults = {"anthropic_api_key": "k", "camera_index": 0}
     defaults.update(kwargs)
     return Settings(**defaults)
 

@@ -10,7 +10,7 @@ from jarvis.config import Settings
 
 
 def _make_settings(**kwargs) -> Settings:
-    defaults = {"deepseek_api_key": "k", "silence_threshold": 0.01, "silence_duration": 0.1}
+    defaults = {"anthropic_api_key": "k", "silence_threshold": 0.01, "silence_duration": 0.1}
     defaults.update(kwargs)
     return Settings(**defaults)
 

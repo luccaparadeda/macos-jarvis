@@ -2,9 +2,8 @@ from pydantic_settings import BaseSettings
 
 
 class Settings(BaseSettings):
-    deepseek_api_key: str
-    deepseek_base_url: str = "https://api.deepseek.com"
-    deepseek_model: str = "deepseek-chat"
+    anthropic_api_key: str
+    anthropic_model: str = "claude-sonnet-4-20250514"
     whisper_model: str = "mlx-community/whisper-tiny"
     kokoro_model: str = "mlx-community/Kokoro-82M-bf16"
     wake_model: str = "hey_jarvis"
@@ -21,4 +20,4 @@ class Settings(BaseSettings):
         "screen",
     ]
 
-    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8", "extra": "ignore"}

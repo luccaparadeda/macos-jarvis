@@ -8,7 +8,7 @@ from jarvis.config import Settings
 
 
 def _make_settings(**kwargs) -> Settings:
-    defaults = {"deepseek_api_key": "k"}
+    defaults = {"anthropic_api_key": "k"}
     defaults.update(kwargs)
     return Settings(**defaults)
 

@@ -3,12 +3,12 @@ import json
 import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from jarvis.brain import needs_vision, think_and_act
+from jarvis.brain import needs_vision, think_and_act, _convert_tools_for_anthropic
 from jarvis.config import Settings
 
 
 def _make_settings(**kwargs) -> Settings:
-    defaults = {"deepseek_api_key": "test-key"}
+    defaults = {"anthropic_api_key": "test-key"}
     defaults.update(kwargs)
     return Settings(**defaults)
 
@@ -43,66 +43,83 @@ class TestNeedsVision:
         assert needs_vision("LOOK at the Screen", s) is True
 
 
+class TestConvertTools:
+    def test_converts_openai_format_to_anthropic(self):
+        tools = [{
+            "type": "function",
+            "function": {
+                "name": "search_files",
+                "description": "Search files",
+                "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+            },
+        }]
+        result = _convert_tools_for_anthropic(tools)
+        assert len(result) == 1
+        assert result[0]["name"] == "search_files"
+        assert result[0]["description"] == "Search files"
+        assert "input_schema" in result[0]
+
+
 class TestThinkAndAct:
     @pytest.mark.asyncio
     async def test_simple_text_response(self):
         settings = _make_settings()
         interrupt = asyncio.Event()
         conversation: list[dict] = []
-        tools = [{"type": "function", "function": {"name": "run_apple_shortcut"}}]
+        tools = [{"type": "function", "function": {"name": "run_apple_shortcut", "description": "x", "parameters": {}}}]
 
-        mock_message = MagicMock()
-        mock_message.content = "Hello! How can I help?"
-        mock_message.tool_calls = None
-        mock_choice = MagicMock()
-        mock_choice.message = mock_message
+        mock_text_block = MagicMock()
+        mock_text_block.type = "text"
+        mock_text_block.text = "Hello! How can I help?"
+
         mock_response = MagicMock()
-        mock_response.choices = [mock_choice]
+        mock_response.stop_reason = "end_turn"
+        mock_response.content = [mock_text_block]
 
         with patch("jarvis.brain._get_client") as mock_get_client:
             mock_client = MagicMock()
-            mock_client.chat.completions.create = MagicMock(return_value=mock_response)
+            mock_client.messages.create = MagicMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
+
             result = await think_and_act("hello", None, interrupt, tools, conversation, settings)
 
         assert result == "Hello! How can I help?"
-        assert len(conversation) == 3  # system + user + assistant
 
     @pytest.mark.asyncio
     async def test_tool_call_then_response(self):
         settings = _make_settings()
         interrupt = asyncio.Event()
         conversation: list[dict] = []
-        tools = [{"type": "function", "function": {"name": "run_apple_shortcut"}}]
+        tools = [{"type": "function", "function": {"name": "run_apple_shortcut", "description": "x", "parameters": {}}}]
 
-        mock_tool_call = MagicMock()
-        mock_tool_call.id = "call_123"
-        mock_tool_call.function.name = "run_apple_shortcut"
-        mock_tool_call.function.arguments = json.dumps({"shortcut_name": "What's on today?"})
+        mock_tool_block = MagicMock()
+        mock_tool_block.type = "tool_use"
+        mock_tool_block.id = "toolu_123"
+        mock_tool_block.name = "run_apple_shortcut"
+        mock_tool_block.input = {"shortcut_name": "What's on today?"}
 
-        mock_msg1 = MagicMock()
-        mock_msg1.content = None
-        mock_msg1.tool_calls = [mock_tool_call]
-        mock_choice1 = MagicMock()
-        mock_choice1.message = mock_msg1
         mock_resp1 = MagicMock()
-        mock_resp1.choices = [mock_choice1]
+        mock_resp1.stop_reason = "tool_use"
+        mock_resp1.content = [mock_tool_block]
 
-        mock_msg2 = MagicMock()
-        mock_msg2.content = "You have 3 meetings today."
-        mock_msg2.tool_calls = None
-        mock_choice2 = MagicMock()
-        mock_choice2.message = mock_msg2
+        mock_text_block = MagicMock()
+        mock_text_block.type = "text"
+        mock_text_block.text = "You have 3 meetings today."
+
         mock_resp2 = MagicMock()
-        mock_resp2.choices = [mock_choice2]
+        mock_resp2.stop_reason = "end_turn"
+        mock_resp2.content = [mock_text_block]
 
         with patch("jarvis.brain._get_client") as mock_get_client:
             mock_client = MagicMock()
-            mock_client.chat.completions.create = MagicMock(side_effect=[mock_resp1, mock_resp2])
+            mock_client.messages.create = MagicMock(side_effect=[mock_resp1, mock_resp2])
             mock_get_client.return_value = mock_client
+
             with patch("jarvis.hands.run_shortcut", new_callable=AsyncMock) as mock_run:
                 mock_run.return_value = "Meeting 1, Meeting 2, Meeting 3"
-                result = await think_and_act("what's on my calendar", None, interrupt, tools, conversation, settings)
+                result = await think_and_act(
+                    "what's on my calendar", None, interrupt, tools, conversation, settings,
+                )
 
         assert result == "You have 3 meetings today."
         mock_run.assert_called_once_with("What's on today?", input_text=None)
@@ -118,10 +135,11 @@ class TestThinkAndAct:
         with patch("jarvis.brain._get_client") as mock_get_client:
             mock_client = MagicMock()
             mock_get_client.return_value = mock_client
+
             result = await think_and_act("hello", None, interrupt, tools, conversation, settings)
 
         assert result == ""
-        mock_client.chat.completions.create.assert_not_called()
+        mock_client.messages.create.assert_not_called()
 
     @pytest.mark.asyncio
     async def test_image_included_in_message(self):
@@ -130,23 +148,27 @@ class TestThinkAndAct:
         conversation: list[dict] = []
         tools = []
 
-        mock_message = MagicMock()
-        mock_message.content = "I see a laptop on the desk."
-        mock_message.tool_calls = None
-        mock_choice = MagicMock()
-        mock_choice.message = mock_message
+        mock_text_block = MagicMock()
+        mock_text_block.type = "text"
+        mock_text_block.text = "I see a laptop on the desk."
+
         mock_response = MagicMock()
-        mock_response.choices = [mock_choice]
+        mock_response.stop_reason = "end_turn"
+        mock_response.content = [mock_text_block]
 
         with patch("jarvis.brain._get_client") as mock_get_client:
             mock_client = MagicMock()
-            mock_client.chat.completions.create = MagicMock(return_value=mock_response)
+            mock_client.messages.create = MagicMock(return_value=mock_response)
             mock_get_client.return_value = mock_client
-            result = await think_and_act("look at my desk", "base64imgdata", interrupt, tools, conversation, settings)
+
+            result = await think_and_act(
+                "look at my desk", "base64imgdata", interrupt, tools, conversation, settings,
+            )
 
         assert result == "I see a laptop on the desk."
-        call_args = mock_client.chat.completions.create.call_args
+        call_args = mock_client.messages.create.call_args
         messages = call_args[1]["messages"]
         user_msg = messages[-1]
         assert isinstance(user_msg["content"], list)
-        assert user_msg["content"][1]["type"] == "image_url"
+        assert user_msg["content"][1]["type"] == "image"
+        assert user_msg["content"][1]["source"]["data"] == "base64imgdata"

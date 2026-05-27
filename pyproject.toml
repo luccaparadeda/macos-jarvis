@@ -8,12 +8,12 @@ dependencies = [
     "mlx-whisper",
     "mlx-audio",
     "opencv-python",
-    "openai",
     "sounddevice",
     "numpy",
     "pydantic-settings",
     "misaki[en]>=0.9.4",
     "num2words>=0.5.14",
+    "anthropic>=0.104.1",
 ]
 
 [project.scripts]
