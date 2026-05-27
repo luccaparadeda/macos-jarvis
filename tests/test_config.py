@@ -6,7 +6,7 @@ def test_settings_loads_from_env(monkeypatch):
     monkeypatch.setenv("ANTHROPIC_API_KEY", "test-key-123")
     settings = Settings()
     assert settings.anthropic_api_key == "test-key-123"
-    assert settings.anthropic_model == "claude-sonnet-4-20250514"
+    assert settings.anthropic_model == "claude-sonnet-4-6-20250627"
 
 
 def test_settings_defaults():
