@@ -102,7 +102,7 @@ async def test_open_item_app():
     with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
         result = await open_item("Spotify")
     assert "opened" in result.lower()
-    mock_exec.assert_called_once_with("open", "-a", "Spotify", stdout=-1, stderr=-1)
+    mock_exec.assert_called_once_with("open", "Spotify", stdout=-1, stderr=-1)
 
 @pytest.mark.asyncio
 async def test_open_item_file_with_app():

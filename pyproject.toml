@@ -19,11 +19,6 @@ classifiers = [
     "Topic :: Multimedia :: Sound/Audio :: Speech",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-
-[project.urls]
-Homepage = "https://github.com/luccaparadeda/macos-jarvis"
-Repository = "https://github.com/luccaparadeda/macos-jarvis"
-Issues = "https://github.com/luccaparadeda/macos-jarvis/issues"
 dependencies = [
     "openwakeword",
     "mlx-whisper",
@@ -36,6 +31,11 @@ dependencies = [
     "num2words>=0.5.14",
     "anthropic>=0.104.1",
 ]
+
+[project.urls]
+Homepage = "https://github.com/luccaparadeda/macos-jarvis"
+Repository = "https://github.com/luccaparadeda/macos-jarvis"
+Issues = "https://github.com/luccaparadeda/macos-jarvis/issues"
 
 [project.scripts]
 jarvis = "jarvis.main:cli"
