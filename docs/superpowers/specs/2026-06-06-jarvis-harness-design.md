@@ -26,6 +26,7 @@ harnesses, but deliberately sandboxed: Jarvis can only ever write inside
 ```
 ~/.jarvis/
 ├── MEMORY.md          # index: one line per memory (auto-maintained by code)
+├── SKILLS.md          # index: one line per skill (auto-maintained by code)
 ├── TODO.md            # user todos, markdown checkboxes (- [ ] / - [x])
 ├── memories/
 │   └── <slug>.md      # one fact/preference per file
