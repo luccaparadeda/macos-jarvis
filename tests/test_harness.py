@@ -39,7 +39,7 @@ class TestResolve:
     def test_simple_name(self, jarvis_home):
         harness.init_harness()
         path = harness._resolve("memory", "Coffee Preference")
-        assert path == jarvis_home / "memories" / "coffee-preference.md"
+        assert path == (jarvis_home / "memories" / "coffee-preference.md").resolve()
 
     def test_traversal_is_neutralized(self, jarvis_home):
         harness.init_harness()
@@ -60,3 +60,11 @@ class TestResolve:
         assert harness._resolve("memory", "  ") is None
         assert harness._resolve("memory", "../..") is None
         assert harness._resolve("memory", "!!!") is None
+
+    def test_unknown_kind_rejected(self, jarvis_home):
+        harness.init_harness()
+        assert harness._resolve("config", "x") is None
+
+    def test_overlong_name_rejected(self, jarvis_home):
+        harness.init_harness()
+        assert harness._resolve("memory", "a" * 300) is None

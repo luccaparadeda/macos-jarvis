@@ -26,8 +26,10 @@ def _slugify(name: str) -> str:
 
 
 def _resolve(kind: str, name: str) -> Path | None:
+    if kind not in KINDS:
+        return None
     slug = _slugify(name)
-    if not slug:
+    if not slug or len(slug) + len(".md") > 255:
         return None
     folder = (jarvis_home() / KINDS[kind]).resolve()
     path = (folder / f"{slug}.md").resolve()
