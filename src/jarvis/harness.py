@@ -1,4 +1,5 @@
 import os
+import re
 from pathlib import Path
 
 KINDS = {"memory": "memories", "skill": "skills"}
@@ -18,3 +19,18 @@ def init_harness() -> Path:
         if not path.exists():
             path.write_text("", encoding="utf-8")
     return home
+
+
+def _slugify(name: str) -> str:
+    return re.sub(r"[^a-z0-9]+", "-", name.lower()).strip("-")
+
+
+def _resolve(kind: str, name: str) -> Path | None:
+    slug = _slugify(name)
+    if not slug:
+        return None
+    folder = (jarvis_home() / KINDS[kind]).resolve()
+    path = (folder / f"{slug}.md").resolve()
+    if path.parent != folder:
+        return None
+    return path

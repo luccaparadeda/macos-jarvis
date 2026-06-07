@@ -33,3 +33,30 @@ class TestInit:
     def test_empty_env_var_falls_back_to_default(self, jarvis_home, monkeypatch):
         monkeypatch.setenv("JARVIS_HOME", "")
         assert harness.jarvis_home() == Path.home() / ".jarvis"
+
+
+class TestResolve:
+    def test_simple_name(self, jarvis_home):
+        harness.init_harness()
+        path = harness._resolve("memory", "Coffee Preference")
+        assert path == jarvis_home / "memories" / "coffee-preference.md"
+
+    def test_traversal_is_neutralized(self, jarvis_home):
+        harness.init_harness()
+        path = harness._resolve("memory", "../../etc/passwd")
+        assert path is not None
+        assert path.parent == (jarvis_home / "memories").resolve()
+        assert path.name == "etc-passwd.md"
+
+    def test_absolute_path_is_neutralized(self, jarvis_home):
+        harness.init_harness()
+        path = harness._resolve("skill", "/usr/local/bin/evil")
+        assert path is not None
+        assert path.parent == (jarvis_home / "skills").resolve()
+
+    def test_empty_and_symbol_only_names_rejected(self, jarvis_home):
+        harness.init_harness()
+        assert harness._resolve("memory", "") is None
+        assert harness._resolve("memory", "  ") is None
+        assert harness._resolve("memory", "../..") is None
+        assert harness._resolve("memory", "!!!") is None
