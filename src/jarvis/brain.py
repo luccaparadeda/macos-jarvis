@@ -4,7 +4,7 @@ import json
 import anthropic
 
 from jarvis.config import Settings
-from jarvis import hands
+from jarvis import hands, harness
 
 SYSTEM_PROMPT = (
     "You are Jarvis, a helpful and concise macOS voice assistant. "
@@ -57,6 +57,14 @@ async def _execute_tool(name: str, args: dict) -> str:
         return await hands.system_maintenance(
             args["action"], dry_run=args.get("dry_run", True)
         )
+    elif name == "save_memory":
+        return harness.save_memory(args["name"], args["content"])
+    elif name == "save_skill":
+        return harness.save_skill(args["name"], args["content"])
+    elif name == "read_harness_item":
+        return harness.read_item(args["kind"], args["name"])
+    elif name == "manage_todos":
+        return await harness.manage_todos(args["action"], args.get("item"))
     return f"Unknown tool: {name}"
 
 
@@ -67,6 +75,7 @@ async def think_and_act(
     tools: list[dict],
     conversation: list[dict],
     settings: Settings,
+    system_extra: str = "",
 ) -> str:
     if interrupt.is_set():
         return ""
@@ -97,7 +106,7 @@ async def think_and_act(
         kwargs = {
             "model": settings.anthropic_model,
             "max_tokens": 1024,
-            "system": SYSTEM_PROMPT,
+            "system": SYSTEM_PROMPT + ("\n\n" + system_extra if system_extra else ""),
             "messages": trimmed,
         }
         if anthropic_tools:

@@ -172,3 +172,89 @@ class TestThinkAndAct:
         assert isinstance(user_msg["content"], list)
         assert user_msg["content"][1]["type"] == "image"
         assert user_msg["content"][1]["source"]["data"] == "base64imgdata"
+
+
+class TestHarnessDispatch:
+    @pytest.mark.asyncio
+    async def test_save_memory_dispatch(self):
+        from jarvis.brain import _execute_tool
+        with patch("jarvis.harness.save_memory", return_value="Saved memory 'music'") as mock_save:
+            result = await _execute_tool("save_memory", {"name": "music", "content": "Prefers Spotify"})
+        assert result == "Saved memory 'music'"
+        mock_save.assert_called_once_with("music", "Prefers Spotify")
+
+    @pytest.mark.asyncio
+    async def test_save_skill_dispatch(self):
+        from jarvis.brain import _execute_tool
+        with patch("jarvis.harness.save_skill", return_value="Saved skill 'greet'") as mock_save:
+            result = await _execute_tool("save_skill", {"name": "greet", "content": "Be brief"})
+        assert result == "Saved skill 'greet'"
+        mock_save.assert_called_once_with("greet", "Be brief")
+
+    @pytest.mark.asyncio
+    async def test_read_harness_item_dispatch(self):
+        from jarvis.brain import _execute_tool
+        with patch("jarvis.harness.read_item", return_value="Prefers Spotify") as mock_read:
+            result = await _execute_tool("read_harness_item", {"kind": "memory", "name": "music"})
+        assert result == "Prefers Spotify"
+        mock_read.assert_called_once_with("memory", "music")
+
+    @pytest.mark.asyncio
+    async def test_manage_todos_dispatch(self):
+        from jarvis.brain import _execute_tool
+        with patch("jarvis.harness.manage_todos", new_callable=AsyncMock, return_value="Added todo: x") as mock_mt:
+            result = await _execute_tool("manage_todos", {"action": "add", "item": "x"})
+        assert result == "Added todo: x"
+        mock_mt.assert_called_once_with("add", "x")
+
+
+class TestSystemExtra:
+    @pytest.mark.asyncio
+    async def test_system_extra_appended_to_system_prompt(self):
+        settings = _make_settings()
+        interrupt = asyncio.Event()
+
+        mock_text_block = MagicMock()
+        mock_text_block.type = "text"
+        mock_text_block.text = "Hi."
+
+        mock_response = MagicMock()
+        mock_response.stop_reason = "end_turn"
+        mock_response.content = [mock_text_block]
+
+        with patch("jarvis.brain._get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.messages.create = MagicMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            await think_and_act(
+                "hello", None, interrupt, [], [], settings,
+                system_extra="## Your memories\n- music: Prefers Spotify",
+            )
+
+        system = mock_client.messages.create.call_args[1]["system"]
+        assert system.endswith("## Your memories\n- music: Prefers Spotify")
+        assert system.startswith("You are Jarvis")
+
+    @pytest.mark.asyncio
+    async def test_no_system_extra_keeps_prompt_unchanged(self):
+        from jarvis.brain import SYSTEM_PROMPT
+        settings = _make_settings()
+        interrupt = asyncio.Event()
+
+        mock_text_block = MagicMock()
+        mock_text_block.type = "text"
+        mock_text_block.text = "Hi."
+
+        mock_response = MagicMock()
+        mock_response.stop_reason = "end_turn"
+        mock_response.content = [mock_text_block]
+
+        with patch("jarvis.brain._get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.messages.create = MagicMock(return_value=mock_response)
+            mock_get_client.return_value = mock_client
+
+            await think_and_act("hello", None, interrupt, [], [], settings)
+
+        assert mock_client.messages.create.call_args[1]["system"] == SYSTEM_PROMPT
