@@ -207,6 +207,42 @@ class TestHarnessDispatch:
         assert result == "Added todo: x"
         mock_mt.assert_called_once_with("add", "x")
 
+    @pytest.mark.asyncio
+    async def test_tool_exception_becomes_error_result(self):
+        settings = _make_settings()
+        interrupt = asyncio.Event()
+        conversation: list[dict] = []
+
+        mock_tool_block = MagicMock()
+        mock_tool_block.type = "tool_use"
+        mock_tool_block.id = "toolu_err"
+        mock_tool_block.name = "save_memory"
+        mock_tool_block.input = {"name": "x"}  # missing "content" → KeyError
+
+        mock_resp1 = MagicMock()
+        mock_resp1.stop_reason = "tool_use"
+        mock_resp1.content = [mock_tool_block]
+
+        mock_text_block = MagicMock()
+        mock_text_block.type = "text"
+        mock_text_block.text = "Sorry, that failed."
+
+        mock_resp2 = MagicMock()
+        mock_resp2.stop_reason = "end_turn"
+        mock_resp2.content = [mock_text_block]
+
+        with patch("jarvis.brain._get_client") as mock_get_client:
+            mock_client = MagicMock()
+            mock_client.messages.create = MagicMock(side_effect=[mock_resp1, mock_resp2])
+            mock_get_client.return_value = mock_client
+
+            result = await think_and_act("remember x", None, interrupt, [], conversation, settings)
+
+        assert result == "Sorry, that failed."
+        tool_result_msg = conversation[-2]
+        assert tool_result_msg["role"] == "user"
+        assert tool_result_msg["content"][0]["content"].startswith("Error:")
+
 
 class TestSystemExtra:
     @pytest.mark.asyncio

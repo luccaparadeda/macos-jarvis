@@ -68,7 +68,7 @@ def _first_line(content: str) -> str:
 def _rebuild_index(kind: str) -> None:
     folder = jarvis_home() / KINDS[kind]
     lines = [
-        f"- {f.stem}: {_first_line(f.read_text(encoding='utf-8'))}"
+        f"- {f.stem}: {_first_line(f.read_text(encoding='utf-8', errors='replace'))}"
         for f in sorted(folder.glob("*.md"))
     ]
     _atomic_write(jarvis_home() / INDEX_FILES[kind], "\n".join(lines) + ("\n" if lines else ""))
@@ -102,7 +102,7 @@ def read_item(kind: str, name: str) -> str:
     path = _resolve(kind, name)
     if path is None or not path.exists():
         return f"Error: no {kind} named '{name}'"
-    return path.read_text(encoding="utf-8")
+    return path.read_text(encoding="utf-8", errors="replace")
 
 
 def _todo_path() -> Path:
@@ -112,7 +112,7 @@ def _todo_path() -> Path:
 def _read_todo_lines() -> list[str]:
     if not _todo_path().exists():
         return []
-    return [line for line in _todo_path().read_text(encoding="utf-8").splitlines() if line.strip()]
+    return [line for line in _todo_path().read_text(encoding="utf-8", errors="replace").splitlines() if line.strip()]
 
 
 def _write_todo_lines(lines: list[str]) -> None:
@@ -124,7 +124,7 @@ def _todo_text(line: str) -> str:
 
 
 def add_todo(item: str) -> str:
-    item = item.strip()
+    item = re.sub(r"\s+", " ", item).strip()
     if not item:
         return "Error: empty todo"
     lines = _read_todo_lines()
@@ -142,7 +142,9 @@ def _match_indexes(lines: list[str], query: str, open_only: bool) -> list[int]:
     q = query.lower().strip()
     return [
         i for i, line in enumerate(lines)
-        if q in _todo_text(line).lower() and (not open_only or line.startswith("- [ ]"))
+        if line.startswith("- [")
+        and q in _todo_text(line).lower()
+        and (not open_only or line.startswith("- [ ]"))
     ]
 
 
@@ -217,7 +219,7 @@ HARNESS_RULES = (
 
 
 def _read_or_none(path: Path) -> str:
-    text = path.read_text(encoding="utf-8").strip() if path.exists() else ""
+    text = path.read_text(encoding="utf-8", errors="replace").strip() if path.exists() else ""
     return text or "(none)"
 
 

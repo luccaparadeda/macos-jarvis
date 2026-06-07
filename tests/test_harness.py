@@ -130,6 +130,12 @@ class TestMemoriesAndSkills:
         assert result == "Error: memory storage full, consider cleaning up old entries"
         assert harness.save_memory("one", "updated") == "Saved memory 'one'"
 
+    def test_non_utf8_file_does_not_poison_saves(self, jarvis_home):
+        harness.init_harness()
+        (jarvis_home / "memories" / "binary.md").write_bytes(b"\xff\xfe\x00bad")
+        assert harness.save_memory("good", "fine content") == "Saved memory 'good'"
+        assert harness.read_item("memory", "good") == "fine content"
+
 
 class TestTodos:
     def test_add_todo(self, jarvis_home):
@@ -202,6 +208,18 @@ class TestTodos:
     def test_remove_handles_hand_edited_uppercase_x(self, jarvis_home):
         harness.init_harness()
         (jarvis_home / "TODO.md").write_text("- [X] buy milk\n", encoding="utf-8")
+        assert harness.remove_todo("milk") == "Removed: buy milk"
+
+    def test_add_todo_collapses_newlines(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk\n- [x] fake done")
+        todo = (jarvis_home / "TODO.md").read_text(encoding="utf-8")
+        assert todo == "- [ ] buy milk - [x] fake done\n"
+
+    def test_remove_ignores_non_checkbox_lines(self, jarvis_home):
+        harness.init_harness()
+        (jarvis_home / "TODO.md").write_text("# Shopping\n- [ ] buy milk\n", encoding="utf-8")
+        assert harness.remove_todo("shopping") == "Error: no todo matching 'shopping'"
         assert harness.remove_todo("milk") == "Removed: buy milk"
 
 
