@@ -180,8 +180,11 @@ async def _maybe_sync_todos() -> None:
     if SYNC_SHORTCUT not in _available_shortcuts:
         return
     from jarvis import hands
-    contents = _todo_path().read_text(encoding="utf-8")
-    await hands.run_shortcut(SYNC_SHORTCUT, input_text=contents)
+    try:
+        contents = _todo_path().read_text(encoding="utf-8")
+        await hands.run_shortcut(SYNC_SHORTCUT, input_text=contents)
+    except Exception as e:
+        print(f"  [Harness] Todo sync failed: {e}")
 
 
 async def manage_todos(action: str, item: str | None = None) -> str:
