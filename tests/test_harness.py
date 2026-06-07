@@ -197,3 +197,8 @@ class TestTodos:
         harness.add_todo("buy milk")
         harness.complete_todo("milk")
         assert harness.remove_todo("milk") == "Removed: buy milk"
+
+    def test_remove_handles_hand_edited_uppercase_x(self, jarvis_home):
+        harness.init_harness()
+        (jarvis_home / "TODO.md").write_text("- [X] buy milk\n", encoding="utf-8")
+        assert harness.remove_todo("milk") == "Removed: buy milk"

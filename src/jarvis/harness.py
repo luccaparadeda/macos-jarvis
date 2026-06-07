@@ -108,7 +108,7 @@ def _todo_path() -> Path:
 def _read_todo_lines() -> list[str]:
     if not _todo_path().exists():
         return []
-    return [l for l in _todo_path().read_text(encoding="utf-8").splitlines() if l.strip()]
+    return [line for line in _todo_path().read_text(encoding="utf-8").splitlines() if line.strip()]
 
 
 def _write_todo_lines(lines: list[str]) -> None:
@@ -116,7 +116,7 @@ def _write_todo_lines(lines: list[str]) -> None:
 
 
 def _todo_text(line: str) -> str:
-    return line.removeprefix("- [ ]").removeprefix("- [x]").strip()
+    return re.sub(r"^- \[[xX ]\] ?", "", line).strip()
 
 
 def add_todo(item: str) -> str:
