@@ -231,3 +231,78 @@ def build_context() -> str:
         f"## Your skills\n{_read_or_none(home / 'SKILLS.md')}\n\n"
         f"## User's open todos\n{todo_block}"
     )
+
+
+def build_harness_tool_schemas() -> list[dict]:
+    return [
+        {
+            "type": "function",
+            "function": {
+                "name": "save_memory",
+                "description": (
+                    "Save a durable memory about the user (preference, fact, habit) to your "
+                    "persistent home folder. Use a short descriptive name; saving to an existing "
+                    "name updates it. Announce aloud when you save one."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Short descriptive name, e.g. 'music preference'"},
+                        "content": {"type": "string", "description": "The memory in markdown, one fact per memory"},
+                    },
+                    "required": ["name", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "save_skill",
+                "description": (
+                    "Save a reusable skill — a markdown recipe describing how to perform a task "
+                    "(which shortcuts to chain, user preferences to respect). Announce aloud when you save one."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "name": {"type": "string", "description": "Short descriptive name, e.g. 'morning routine'"},
+                        "content": {"type": "string", "description": "Step-by-step instructions in markdown"},
+                    },
+                    "required": ["name", "content"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "read_harness_item",
+                "description": "Read the full content of one of your saved memories or skills by name.",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "kind": {"type": "string", "enum": ["memory", "skill"]},
+                        "name": {"type": "string", "description": "Name as listed in your index"},
+                    },
+                    "required": ["kind", "name"],
+                },
+            },
+        },
+        {
+            "type": "function",
+            "function": {
+                "name": "manage_todos",
+                "description": (
+                    "Manage the user's todo list. Actions: add a new item, complete or remove an "
+                    "existing item (matched by substring), or list all items."
+                ),
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "action": {"type": "string", "enum": ["add", "complete", "remove", "list"]},
+                        "item": {"type": "string", "description": "Todo text (for add) or match text (for complete/remove). Omit for list."},
+                    },
+                    "required": ["action"],
+                },
+            },
+        },
+    ]

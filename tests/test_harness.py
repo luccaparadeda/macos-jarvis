@@ -292,3 +292,21 @@ class TestBuildContext:
         harness.complete_todo("milk")
         ctx = harness.build_context()
         assert "buy milk" not in ctx
+
+
+class TestToolSchemas:
+    def test_build_harness_tool_schemas(self):
+        schemas = harness.build_harness_tool_schemas()
+        names = [s["function"]["name"] for s in schemas]
+        assert names == ["save_memory", "save_skill", "read_harness_item", "manage_todos"]
+        for s in schemas:
+            assert s["type"] == "function"
+            assert "description" in s["function"]
+            assert s["function"]["parameters"]["type"] == "object"
+
+    def test_manage_todos_schema_actions(self):
+        schemas = {s["function"]["name"]: s for s in harness.build_harness_tool_schemas()}
+        actions = schemas["manage_todos"]["function"]["parameters"]["properties"]["action"]["enum"]
+        assert actions == ["add", "complete", "remove", "list"]
+        kinds = schemas["read_harness_item"]["function"]["parameters"]["properties"]["kind"]["enum"]
+        assert kinds == ["memory", "skill"]
