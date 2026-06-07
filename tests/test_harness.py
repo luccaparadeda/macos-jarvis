@@ -310,3 +310,7 @@ class TestToolSchemas:
         assert actions == ["add", "complete", "remove", "list"]
         kinds = schemas["read_harness_item"]["function"]["parameters"]["properties"]["kind"]["enum"]
         assert kinds == ["memory", "skill"]
+        assert schemas["save_memory"]["function"]["parameters"]["required"] == ["name", "content"]
+        assert schemas["save_skill"]["function"]["parameters"]["required"] == ["name", "content"]
+        assert schemas["read_harness_item"]["function"]["parameters"]["required"] == ["kind", "name"]
+        assert schemas["manage_todos"]["function"]["parameters"]["required"] == ["action"]
