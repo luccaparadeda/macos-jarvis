@@ -264,3 +264,31 @@ class TestManageTodosAndSync:
         with patch("jarvis.hands.run_shortcut", new_callable=AsyncMock, side_effect=FileNotFoundError("shortcuts missing")):
             result = await harness.manage_todos("add", "buy milk")
         assert result == "Added todo: buy milk"
+
+
+class TestBuildContext:
+    def test_renders_all_sections(self, jarvis_home):
+        harness.init_harness()
+        harness.save_memory("music", "Prefers Spotify.")
+        harness.save_skill("greet", "Be brief.")
+        harness.add_todo("buy milk")
+        ctx = harness.build_context()
+        assert "## Your memories" in ctx
+        assert "- music: Prefers Spotify." in ctx
+        assert "## Your skills" in ctx
+        assert "- greet: Be brief." in ctx
+        assert "## User's open todos" in ctx
+        assert "- [ ] buy milk" in ctx
+        assert "save_memory" in ctx  # behavior rules present
+
+    def test_empty_sections_render_none(self, jarvis_home):
+        harness.init_harness()
+        ctx = harness.build_context()
+        assert ctx.count("(none)") == 3
+
+    def test_completed_todos_excluded(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk")
+        harness.complete_todo("milk")
+        ctx = harness.build_context()
+        assert "buy milk" not in ctx

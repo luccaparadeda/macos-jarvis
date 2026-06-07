@@ -203,3 +203,31 @@ async def manage_todos(action: str, item: str | None = None) -> str:
     if not result.startswith(("Error", "Ambiguous")):
         await _maybe_sync_todos()
     return result
+
+
+HARNESS_RULES = (
+    "You have a persistent home folder of memories, skills, and the user's todos. "
+    "The indexes below list what you have; use read_harness_item to read one in full when relevant. "
+    "Save a memory with save_memory whenever you learn something durable about the user, "
+    "and say aloud that you did so the user can veto it. "
+    "When you work out a reusable way to do a task, save it with save_skill and announce it. "
+    "Before a multi-step task, check whether a matching skill exists and read it first. "
+    "Manage the user's todo list with manage_todos."
+)
+
+
+def _read_or_none(path: Path) -> str:
+    text = path.read_text(encoding="utf-8").strip() if path.exists() else ""
+    return text or "(none)"
+
+
+def build_context() -> str:
+    home = jarvis_home()
+    open_todos = [line for line in _read_todo_lines() if line.startswith("- [ ]")]
+    todo_block = "\n".join(open_todos) if open_todos else "(none)"
+    return (
+        f"{HARNESS_RULES}\n\n"
+        f"## Your memories\n{_read_or_none(home / 'MEMORY.md')}\n\n"
+        f"## Your skills\n{_read_or_none(home / 'SKILLS.md')}\n\n"
+        f"## User's open todos\n{todo_block}"
+    )
