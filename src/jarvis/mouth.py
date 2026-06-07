@@ -1,5 +1,6 @@
 import asyncio
 import functools
+import re
 
 import numpy as np
 import sounddevice as sd
@@ -7,6 +8,14 @@ import sounddevice as sd
 from jarvis.config import Settings
 
 _model = None
+
+
+def _plain_speech(text: str) -> str:
+    """Strip markdown so the TTS engine speaks plain sentences."""
+    text = re.sub(r"\[([^\]]+)\]\([^)]*\)", r"\1", text)  # [label](url) -> label
+    text = re.sub(r"[*_`#]+", "", text)  # emphasis, code, headers
+    text = re.sub(r"^\s*[-•]\s+", "", text, flags=re.MULTILINE)  # list bullets
+    return re.sub(r"\s+", " ", text).strip()
 
 
 def _get_model(settings: Settings):
@@ -35,6 +44,10 @@ def _generate_audio(text: str, settings: Settings) -> tuple[np.ndarray, int]:
 
 async def speak(text: str, interrupt: asyncio.Event, settings: Settings) -> None:
     if not text or interrupt.is_set():
+        return
+
+    text = _plain_speech(text)
+    if not text:
         return
 
     loop = asyncio.get_event_loop()

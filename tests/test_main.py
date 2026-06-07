@@ -89,6 +89,27 @@ async def test_pipeline_camera_failure_falls_back_to_text():
 
 
 @pytest.mark.asyncio
+async def test_pipeline_pauses_listener_during_tts():
+    # Wake listener must not hear Jarvis's own voice (self-trigger + ambient pollution)
+    settings = _make_settings()
+    interrupt = asyncio.Event()
+    audio_buf = np.random.randn(16000).astype(np.float32)
+    listener = MagicMock()
+    listener.ambient_level = 0.001
+
+    with patch("jarvis.main.record_until_silence", new_callable=AsyncMock, return_value=audio_buf):
+        with patch("jarvis.main.transcribe", new_callable=AsyncMock, return_value="hello"):
+            with patch("jarvis.main.needs_vision", return_value=False):
+                with patch("jarvis.main.think_and_act", new_callable=AsyncMock, return_value="Hi!"):
+                    with patch("jarvis.main.speak", new_callable=AsyncMock):
+                        await pipeline_iteration(interrupt, [], [], settings, listener)
+
+    # paused for recording AND for TTS playback
+    assert listener.pause.call_count == 2
+    assert listener.resume.call_count == 2
+
+
+@pytest.mark.asyncio
 async def test_pipeline_passes_listener_ambient_to_recorder():
     settings = _make_settings()
     interrupt = asyncio.Event()

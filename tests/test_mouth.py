@@ -30,6 +30,29 @@ async def test_speak_generates_and_plays_audio():
     assert call_args[1]["samplerate"] == 24000
 
 
+def test_plain_speech_strips_markdown():
+    from jarvis.mouth import _plain_speech
+    assert _plain_speech("You have one item: **Buy milk**.") == "You have one item: Buy milk."
+    assert _plain_speech("# Header\n- bullet one\n- bullet two") == "Header bullet one bullet two"
+    assert _plain_speech("see [the docs](https://example.com) now") == "see the docs now"
+    assert _plain_speech("normal to-do text stays") == "normal to-do text stays"
+
+
+@pytest.mark.asyncio
+async def test_speak_strips_markdown_before_tts():
+    settings = _make_settings()
+    interrupt = asyncio.Event()
+    fake_audio = np.zeros(100, dtype=np.float32)
+
+    with patch("jarvis.mouth._generate_audio", return_value=(fake_audio, 24000)) as mock_gen:
+        with patch("sounddevice.play"):
+            with patch("sounddevice.wait"):
+                await speak("You have one item: **Buy milk**.", interrupt, settings)
+
+    spoken = mock_gen.call_args[0][0]
+    assert spoken == "You have one item: Buy milk."
+
+
 @pytest.mark.asyncio
 async def test_speak_stops_on_interrupt():
     settings = _make_settings()

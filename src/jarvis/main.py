@@ -99,11 +99,15 @@ async def pipeline_iteration(
 
     _log("Brain", f'"{response[:80]}{"..." if len(response) > 80 else ""}"', t3)
 
-    # 5. Speak
+    # 5. Speak — pause the wake listener so Jarvis doesn't hear himself
     if response:
         t4 = time.monotonic()
         _log("TTS", "Generating speech...")
+        if listener:
+            listener.pause()
         await speak(response, interrupt, settings)
+        if listener:
+            listener.resume()
         _log("TTS", "Done speaking", t4)
 
     _log("Total", "Pipeline complete", t0)
@@ -149,6 +153,7 @@ async def main() -> None:
             print(">>> Wake word detected!")
 
             await pipeline_iteration(interrupt, tools, conversation, settings, listener, system_extra=system_extra)
+            wake_event.clear()  # drop any wake triggers that fired mid-pipeline
             print()
     except KeyboardInterrupt:
         print("\n[Jarvis] Shutting down...")
