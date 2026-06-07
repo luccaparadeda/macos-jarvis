@@ -128,3 +128,72 @@ class TestMemoriesAndSkills:
         result = harness.save_memory("three", "3")
         assert result == "Error: memory storage full, consider cleaning up old entries"
         assert harness.save_memory("one", "updated") == "Saved memory 'one'"
+
+
+class TestTodos:
+    def test_add_todo(self, jarvis_home):
+        harness.init_harness()
+        result = harness.add_todo("buy milk")
+        assert result == "Added todo: buy milk"
+        todo = (jarvis_home / "TODO.md").read_text(encoding="utf-8")
+        assert "- [ ] buy milk" in todo
+
+    def test_add_empty_todo_rejected(self, jarvis_home):
+        harness.init_harness()
+        assert harness.add_todo("  ") == "Error: empty todo"
+
+    def test_list_todos(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk")
+        harness.add_todo("call mom")
+        result = harness.list_todos()
+        assert "- [ ] buy milk" in result
+        assert "- [ ] call mom" in result
+
+    def test_list_empty(self, jarvis_home):
+        harness.init_harness()
+        assert harness.list_todos() == "No todos."
+
+    def test_complete_todo_substring_case_insensitive(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("Buy milk at the store")
+        result = harness.complete_todo("MILK")
+        assert result == "Completed: Buy milk at the store"
+        todo = (jarvis_home / "TODO.md").read_text(encoding="utf-8")
+        assert "- [x] Buy milk at the store" in todo
+
+    def test_complete_no_match(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk")
+        assert harness.complete_todo("dentist") == "Error: no open todo matching 'dentist'"
+
+    def test_complete_already_done_not_matched(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk")
+        harness.complete_todo("milk")
+        assert harness.complete_todo("milk") == "Error: no open todo matching 'milk'"
+
+    def test_complete_ambiguous_lists_candidates(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk")
+        harness.add_todo("buy milkshake mix")
+        result = harness.complete_todo("milk")
+        assert result.startswith("Ambiguous, matches: ")
+        assert "buy milk" in result
+        assert "buy milkshake mix" in result
+
+    def test_remove_todo(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk")
+        harness.add_todo("call mom")
+        result = harness.remove_todo("milk")
+        assert result == "Removed: buy milk"
+        todo = (jarvis_home / "TODO.md").read_text(encoding="utf-8")
+        assert "milk" not in todo
+        assert "call mom" in todo
+
+    def test_remove_matches_completed_items_too(self, jarvis_home):
+        harness.init_harness()
+        harness.add_todo("buy milk")
+        harness.complete_todo("milk")
+        assert harness.remove_todo("milk") == "Removed: buy milk"

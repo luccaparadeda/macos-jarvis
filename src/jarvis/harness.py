@@ -99,3 +99,69 @@ def read_item(kind: str, name: str) -> str:
     if path is None or not path.exists():
         return f"Error: no {kind} named '{name}'"
     return path.read_text(encoding="utf-8")
+
+
+def _todo_path() -> Path:
+    return jarvis_home() / "TODO.md"
+
+
+def _read_todo_lines() -> list[str]:
+    if not _todo_path().exists():
+        return []
+    return [l for l in _todo_path().read_text(encoding="utf-8").splitlines() if l.strip()]
+
+
+def _write_todo_lines(lines: list[str]) -> None:
+    _atomic_write(_todo_path(), "\n".join(lines) + ("\n" if lines else ""))
+
+
+def _todo_text(line: str) -> str:
+    return line.removeprefix("- [ ]").removeprefix("- [x]").strip()
+
+
+def add_todo(item: str) -> str:
+    item = item.strip()
+    if not item:
+        return "Error: empty todo"
+    lines = _read_todo_lines()
+    lines.append(f"- [ ] {item}")
+    _write_todo_lines(lines)
+    return f"Added todo: {item}"
+
+
+def list_todos() -> str:
+    lines = _read_todo_lines()
+    return "\n".join(lines) if lines else "No todos."
+
+
+def _match_indexes(lines: list[str], query: str, open_only: bool) -> list[int]:
+    q = query.lower().strip()
+    return [
+        i for i, line in enumerate(lines)
+        if q in _todo_text(line).lower() and (not open_only or line.startswith("- [ ]"))
+    ]
+
+
+def complete_todo(item: str) -> str:
+    lines = _read_todo_lines()
+    matches = _match_indexes(lines, item, open_only=True)
+    if not matches:
+        return f"Error: no open todo matching '{item}'"
+    if len(matches) > 1:
+        return "Ambiguous, matches: " + "; ".join(_todo_text(lines[i]) for i in matches)
+    text = _todo_text(lines[matches[0]])
+    lines[matches[0]] = f"- [x] {text}"
+    _write_todo_lines(lines)
+    return f"Completed: {text}"
+
+
+def remove_todo(item: str) -> str:
+    lines = _read_todo_lines()
+    matches = _match_indexes(lines, item, open_only=False)
+    if not matches:
+        return f"Error: no todo matching '{item}'"
+    if len(matches) > 1:
+        return "Ambiguous, matches: " + "; ".join(_todo_text(lines[i]) for i in matches)
+    text = _todo_text(lines.pop(matches[0]))
+    _write_todo_lines(lines)
+    return f"Removed: {text}"
