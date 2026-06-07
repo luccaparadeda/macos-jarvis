@@ -68,3 +68,63 @@ class TestResolve:
     def test_overlong_name_rejected(self, jarvis_home):
         harness.init_harness()
         assert harness._resolve("memory", "a" * 300) is None
+
+
+class TestMemoriesAndSkills:
+    def test_save_and_read_memory_roundtrip(self, jarvis_home):
+        harness.init_harness()
+        result = harness.save_memory("Coffee Preference", "# Coffee\nUser likes oat-milk flat whites.")
+        assert result == "Saved memory 'coffee-preference'"
+        assert harness.read_item("memory", "coffee preference") == "# Coffee\nUser likes oat-milk flat whites."
+
+    def test_save_and_read_skill_roundtrip(self, jarvis_home):
+        harness.init_harness()
+        harness.save_skill("Morning Routine", "Open Spotify, then read calendar.")
+        assert harness.read_item("skill", "morning routine") == "Open Spotify, then read calendar."
+
+    def test_index_updated_on_save(self, jarvis_home):
+        harness.init_harness()
+        harness.save_memory("music", "# Music\nPrefers Spotify over Apple Music.")
+        index = (jarvis_home / "MEMORY.md").read_text(encoding="utf-8")
+        assert "- music: Music" in index
+
+    def test_index_summary_uses_first_nonempty_line(self, jarvis_home):
+        harness.init_harness()
+        harness.save_skill("greet", "\n\n# Greeting style\nBe brief.")
+        index = (jarvis_home / "SKILLS.md").read_text(encoding="utf-8")
+        assert "- greet: Greeting style" in index
+
+    def test_same_slug_updates_instead_of_duplicating(self, jarvis_home):
+        harness.init_harness()
+        harness.save_memory("music", "old")
+        harness.save_memory("Music!", "new")
+        assert harness.read_item("memory", "music") == "new"
+        index = (jarvis_home / "MEMORY.md").read_text(encoding="utf-8")
+        assert index.count("- music:") == 1
+
+    def test_read_missing_returns_error(self, jarvis_home):
+        harness.init_harness()
+        assert harness.read_item("memory", "nope") == "Error: no memory named 'nope'"
+
+    def test_read_invalid_kind_returns_error(self, jarvis_home):
+        harness.init_harness()
+        assert harness.read_item("recipe", "x") == "Error: invalid kind"
+
+    def test_invalid_name_returns_error(self, jarvis_home):
+        harness.init_harness()
+        assert harness.save_memory("!!!", "content") == "Error: invalid name"
+
+    def test_content_too_long_rejected(self, jarvis_home):
+        harness.init_harness()
+        result = harness.save_memory("big", "x" * 10_001)
+        assert result == "Error: content too long, please summarize it"
+        assert harness.read_item("memory", "big").startswith("Error:")
+
+    def test_index_cap_rejects_new_but_allows_updates(self, jarvis_home, monkeypatch):
+        harness.init_harness()
+        monkeypatch.setattr(harness, "MAX_INDEX_ENTRIES", 2)
+        harness.save_memory("one", "1")
+        harness.save_memory("two", "2")
+        result = harness.save_memory("three", "3")
+        assert result == "Error: memory storage full, consider cleaning up old entries"
+        assert harness.save_memory("one", "updated") == "Saved memory 'one'"
