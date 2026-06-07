@@ -1,4 +1,5 @@
 from pathlib import Path
+from unittest.mock import AsyncMock, patch
 
 import pytest
 
@@ -202,3 +203,56 @@ class TestTodos:
         harness.init_harness()
         (jarvis_home / "TODO.md").write_text("- [X] buy milk\n", encoding="utf-8")
         assert harness.remove_todo("milk") == "Removed: buy milk"
+
+
+class TestManageTodosAndSync:
+    @pytest.fixture(autouse=True)
+    def reset_shortcuts(self):
+        harness.set_available_shortcuts([])
+        yield
+        harness.set_available_shortcuts([])
+
+    @pytest.mark.asyncio
+    async def test_manage_todos_dispatch(self, jarvis_home):
+        harness.init_harness()
+        assert (await harness.manage_todos("add", "buy milk")) == "Added todo: buy milk"
+        assert "buy milk" in (await harness.manage_todos("list"))
+        assert (await harness.manage_todos("complete", "milk")) == "Completed: buy milk"
+        assert (await harness.manage_todos("remove", "milk")) == "Removed: buy milk"
+
+    @pytest.mark.asyncio
+    async def test_manage_todos_unknown_action(self, jarvis_home):
+        harness.init_harness()
+        assert (await harness.manage_todos("explode", "x")) == "Error: unknown action 'explode'"
+
+    @pytest.mark.asyncio
+    async def test_manage_todos_missing_item(self, jarvis_home):
+        harness.init_harness()
+        assert (await harness.manage_todos("add", None)) == "Error: item required"
+
+    @pytest.mark.asyncio
+    async def test_sync_runs_when_shortcut_available(self, jarvis_home):
+        harness.init_harness()
+        harness.set_available_shortcuts(["Sync Jarvis Todos", "Other"])
+        with patch("jarvis.hands.run_shortcut", new_callable=AsyncMock) as mock_run:
+            await harness.manage_todos("add", "buy milk")
+        mock_run.assert_called_once()
+        args, kwargs = mock_run.call_args
+        assert args[0] == "Sync Jarvis Todos"
+        assert "- [ ] buy milk" in kwargs["input_text"]
+
+    @pytest.mark.asyncio
+    async def test_no_sync_when_shortcut_absent(self, jarvis_home):
+        harness.init_harness()
+        with patch("jarvis.hands.run_shortcut", new_callable=AsyncMock) as mock_run:
+            await harness.manage_todos("add", "buy milk")
+        mock_run.assert_not_called()
+
+    @pytest.mark.asyncio
+    async def test_no_sync_on_list_or_error(self, jarvis_home):
+        harness.init_harness()
+        harness.set_available_shortcuts(["Sync Jarvis Todos"])
+        with patch("jarvis.hands.run_shortcut", new_callable=AsyncMock) as mock_run:
+            await harness.manage_todos("list")
+            await harness.manage_todos("complete", "nothing-matches")
+        mock_run.assert_not_called()

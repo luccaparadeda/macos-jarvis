@@ -9,6 +9,10 @@ INDEX_FILES = {"memory": "MEMORY.md", "skill": "SKILLS.md"}
 MAX_CONTENT_CHARS = 10_000
 MAX_INDEX_ENTRIES = 200
 
+SYNC_SHORTCUT = "Sync Jarvis Todos"
+
+_available_shortcuts: set[str] = set()
+
 
 def jarvis_home() -> Path:
     return Path(os.environ.get("JARVIS_HOME") or (Path.home() / ".jarvis"))
@@ -165,3 +169,34 @@ def remove_todo(item: str) -> str:
     text = _todo_text(lines.pop(matches[0]))
     _write_todo_lines(lines)
     return f"Removed: {text}"
+
+
+def set_available_shortcuts(names: list[str]) -> None:
+    global _available_shortcuts
+    _available_shortcuts = set(names)
+
+
+async def _maybe_sync_todos() -> None:
+    if SYNC_SHORTCUT not in _available_shortcuts:
+        return
+    from jarvis import hands
+    contents = _todo_path().read_text(encoding="utf-8")
+    await hands.run_shortcut(SYNC_SHORTCUT, input_text=contents)
+
+
+async def manage_todos(action: str, item: str | None = None) -> str:
+    if action == "list":
+        return list_todos()
+    if not item:
+        return "Error: item required"
+    if action == "add":
+        result = add_todo(item)
+    elif action == "complete":
+        result = complete_todo(item)
+    elif action == "remove":
+        result = remove_todo(item)
+    else:
+        return f"Error: unknown action '{action}'"
+    if not result.startswith(("Error", "Ambiguous")):
+        await _maybe_sync_todos()
+    return result
