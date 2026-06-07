@@ -89,6 +89,39 @@ async def test_pipeline_camera_failure_falls_back_to_text():
 
 
 @pytest.mark.asyncio
+async def test_pipeline_passes_listener_ambient_to_recorder():
+    settings = _make_settings()
+    interrupt = asyncio.Event()
+    audio_buf = np.random.randn(16000).astype(np.float32)
+    listener = MagicMock()
+    listener.ambient_level = 0.003
+
+    with patch("jarvis.main.record_until_silence", new_callable=AsyncMock, return_value=audio_buf) as mock_record:
+        with patch("jarvis.main.transcribe", new_callable=AsyncMock, return_value="hi"):
+            with patch("jarvis.main.needs_vision", return_value=False):
+                with patch("jarvis.main.think_and_act", new_callable=AsyncMock, return_value="Hello!"):
+                    with patch("jarvis.main.speak", new_callable=AsyncMock):
+                        await pipeline_iteration(interrupt, [], [], settings, listener)
+
+    assert mock_record.call_args[1]["ambient"] == 0.003
+
+
+@pytest.mark.asyncio
+async def test_pipeline_empty_audio_short_circuits():
+    settings = _make_settings()
+    interrupt = asyncio.Event()
+    empty_buf = np.array([], dtype=np.float32)
+
+    with patch("jarvis.main.record_until_silence", new_callable=AsyncMock, return_value=empty_buf):
+        with patch("jarvis.main.transcribe", new_callable=AsyncMock) as mock_transcribe:
+            with patch("jarvis.main.speak", new_callable=AsyncMock) as mock_speak:
+                await pipeline_iteration(interrupt, [], [], settings)
+
+    mock_transcribe.assert_not_called()
+    mock_speak.assert_called_once_with("I didn't catch that.", interrupt, settings)
+
+
+@pytest.mark.asyncio
 async def test_pipeline_passes_system_extra_to_brain():
     settings = _make_settings()
     interrupt = asyncio.Event()

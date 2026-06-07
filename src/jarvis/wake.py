@@ -1,5 +1,7 @@
 import asyncio
 import threading
+import time
+from collections import deque
 
 import numpy as np
 import sounddevice as sd
@@ -7,6 +9,9 @@ from openwakeword import Model
 
 CHUNK_SIZE = 1280
 SAMPLE_RATE = 16000
+AMBIENT_WINDOW_CHUNKS = 50  # ~4s of recent chunk amplitudes
+AMBIENT_MIN_CHUNKS = 10
+AMBIENT_PERCENTILE = 20
 
 
 class WakeWordListener:
@@ -25,6 +30,18 @@ class WakeWordListener:
         self._paused = False
         self._thread: threading.Thread | None = None
         self._model: Model | None = None
+        self._stream: sd.InputStream | None = None
+        self._recent_amps: deque[float] = deque(maxlen=AMBIENT_WINDOW_CHUNKS)
+
+    @property
+    def ambient_level(self) -> float | None:
+        """Noise floor estimated from idle listening (percentile is robust to bursts)."""
+        if len(self._recent_amps) < AMBIENT_MIN_CHUNKS:
+            return None
+        return float(np.percentile(list(self._recent_amps), AMBIENT_PERCENTILE))
+
+    def _track_ambient(self, amplitude: float) -> None:
+        self._recent_amps.append(amplitude)
 
     def start(self) -> None:
         self._running = True
@@ -38,6 +55,12 @@ class WakeWordListener:
 
     def pause(self) -> None:
         self._paused = True
+        # Wait briefly for the listen loop to release the mic so the recorder
+        # doesn't open a second stream on the same device (PaMacCore err -50).
+        for _ in range(10):
+            if self._stream is None or not self._stream.active:
+                break
+            time.sleep(0.05)
 
     def resume(self) -> None:
         self._paused = False
@@ -51,25 +74,39 @@ class WakeWordListener:
             if self._paused or not self._running:
                 return
 
-            audio_data = (indata[:, 0] * 32767).astype(np.int16)
+            chunk = indata[:, 0]
+            self._track_ambient(float(np.abs(chunk).mean()))
+            audio_data = (chunk * 32767).astype(np.int16)
             predictions = self._model.predict(audio_data)
             for key, score in predictions.items():
                 if score > self._threshold:
                     print(f"[Wake] Detected! ({score:.2f})")
                     self._loop.call_soon_threadsafe(self._wake_event.set)
 
+        self._stream = sd.InputStream(
+            samplerate=SAMPLE_RATE,
+            channels=1,
+            blocksize=CHUNK_SIZE,
+            dtype="float32",
+            callback=audio_callback,
+        )
         try:
-            with sd.InputStream(
-                samplerate=SAMPLE_RATE,
-                channels=1,
-                blocksize=CHUNK_SIZE,
-                dtype="float32",
-                callback=audio_callback,
-            ):
-                while self._running:
-                    sd.sleep(100)
+            self._stream.start()
+            while self._running:
+                # Release the mic while recording; reacquire on resume.
+                if self._paused and self._stream.active:
+                    self._stream.stop()
+                elif not self._paused and not self._stream.active:
+                    self._stream.start()
+                sd.sleep(100)
         except (KeyboardInterrupt, OSError):
             pass
+        finally:
+            try:
+                self._stream.stop()
+                self._stream.close()
+            except Exception:
+                pass
 
 
 async def start_listener(

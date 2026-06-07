@@ -66,6 +66,23 @@ async def test_listener_ignores_low_confidence():
     assert not wake_event.is_set()
 
 
+def test_ambient_level_tracks_noise_floor():
+    loop = asyncio.new_event_loop()
+    wake_event = asyncio.Event()
+    listener = WakeWordListener(wake_event, loop, threshold=0.5)
+
+    assert listener.ambient_level is None  # not enough samples yet
+
+    # mostly-quiet room with a brief loud burst (e.g. a cough)
+    for amp in [0.001] * 8 + [0.5] * 2:
+        listener._track_ambient(amp)
+
+    level = listener.ambient_level
+    assert level is not None
+    assert level < 0.01  # percentile floor ignores the burst
+    loop.close()
+
+
 def test_pause_resume():
     loop = asyncio.new_event_loop()
     wake_event = asyncio.Event()

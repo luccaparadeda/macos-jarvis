@@ -12,7 +12,13 @@ BLOCK_SIZE = 1600
 CALIBRATION_CHUNKS = 5
 
 
-async def record_until_silence(interrupt: asyncio.Event, settings: Settings) -> np.ndarray:
+def _clamp_threshold(value: float, settings: Settings) -> float:
+    return min(max(value, settings.silence_floor), settings.silence_ceiling)
+
+
+async def record_until_silence(
+    interrupt: asyncio.Event, settings: Settings, ambient: float | None = None
+) -> np.ndarray:
     loop = asyncio.get_event_loop()
     chunks: list[np.ndarray] = []
     recording_done = asyncio.Event()
@@ -21,7 +27,13 @@ async def record_until_silence(interrupt: asyncio.Event, settings: Settings) -> 
     last_voice_time = time.monotonic()
 
     calibration_samples: list[float] = []
-    threshold = settings.silence_threshold if settings.silence_threshold > 0 else None
+    if settings.silence_threshold > 0:
+        threshold = settings.silence_threshold
+    elif ambient is not None:
+        threshold = _clamp_threshold(ambient * settings.silence_multiplier, settings)
+        print(f"[Audio] Threshold from idle ambient={ambient:.4f}: {threshold:.4f}")
+    else:
+        threshold = None  # calibrate from the first chunks of this stream
 
     def callback(indata, frames, time_info, status):
         nonlocal last_voice_time, heard_voice, threshold
@@ -36,9 +48,9 @@ async def record_until_silence(interrupt: asyncio.Event, settings: Settings) -> 
         if threshold is None:
             calibration_samples.append(amplitude)
             if len(calibration_samples) >= CALIBRATION_CHUNKS:
-                ambient = np.mean(calibration_samples)
-                threshold = ambient * settings.silence_multiplier
-                print(f"[Audio] Calibrated: ambient={ambient:.4f}, threshold={threshold:.4f}")
+                ambient_est = np.mean(calibration_samples)
+                threshold = _clamp_threshold(ambient_est * settings.silence_multiplier, settings)
+                print(f"[Audio] Calibrated: ambient={ambient_est:.4f}, threshold={threshold:.4f}")
             return
 
         chunks.append(chunk)
@@ -50,8 +62,8 @@ async def record_until_silence(interrupt: asyncio.Event, settings: Settings) -> 
             heard_voice = True
         elif heard_voice and now - last_voice_time > settings.silence_duration:
             loop.call_soon_threadsafe(recording_done.set)
-        elif not heard_voice and now - start_time > 5.0:
-            print("[Audio] No voice detected after 5s, giving up.")
+        elif not heard_voice and now - start_time > settings.no_voice_timeout:
+            print(f"[Audio] No voice detected after {settings.no_voice_timeout:.0f}s, giving up.")
             loop.call_soon_threadsafe(recording_done.set)
 
     if interrupt.is_set():
@@ -68,6 +80,6 @@ async def record_until_silence(interrupt: asyncio.Event, settings: Settings) -> 
     ):
         await recording_done.wait()
 
-    if not chunks:
+    if not heard_voice or not chunks:
         return np.array([], dtype=np.float32)
     return np.concatenate(chunks)

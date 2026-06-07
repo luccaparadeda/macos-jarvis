@@ -33,12 +33,18 @@ async def pipeline_iteration(
 
     # 1. Record
     _log("Mic", "Pausing wake word, recording...")
+    ambient = listener.ambient_level if listener else None
     if listener:
         listener.pause()
-    audio_buf = await record_until_silence(interrupt, settings)
+    audio_buf = await record_until_silence(interrupt, settings, ambient=ambient)
     if listener:
         listener.resume()
     if interrupt.is_set():
+        return
+
+    if audio_buf.size == 0:
+        _log("Mic", "No voice captured", t0)
+        await speak("I didn't catch that.", interrupt, settings)
         return
 
     duration_s = len(audio_buf) / 16000
@@ -131,7 +137,7 @@ async def main() -> None:
     interrupt = asyncio.Event()
     loop = asyncio.get_running_loop()
 
-    listener = await start_listener(wake_event, loop, settings.wake_model)
+    listener = await start_listener(wake_event, loop, settings.wake_model, settings.wake_threshold)
     print("[Jarvis] Listening for wake word... Say 'Hey Jarvis'!")
     print()
 
