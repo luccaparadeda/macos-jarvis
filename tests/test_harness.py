@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pytest
 
 from jarvis import harness
@@ -27,3 +29,7 @@ class TestInit:
         (jarvis_home / "TODO.md").write_text("- [ ] buy milk\n", encoding="utf-8")
         harness.init_harness()
         assert (jarvis_home / "TODO.md").read_text(encoding="utf-8") == "- [ ] buy milk\n"
+
+    def test_empty_env_var_falls_back_to_default(self, jarvis_home, monkeypatch):
+        monkeypatch.setenv("JARVIS_HOME", "")
+        assert harness.jarvis_home() == Path.home() / ".jarvis"

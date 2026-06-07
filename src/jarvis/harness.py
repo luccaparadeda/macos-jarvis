@@ -6,7 +6,7 @@ INDEX_FILES = {"memory": "MEMORY.md", "skill": "SKILLS.md"}
 
 
 def jarvis_home() -> Path:
-    return Path(os.environ.get("JARVIS_HOME", str(Path.home() / ".jarvis")))
+    return Path(os.environ.get("JARVIS_HOME") or (Path.home() / ".jarvis"))
 
 
 def init_harness() -> Path:
