@@ -86,3 +86,24 @@ async def test_pipeline_camera_failure_falls_back_to_text():
 
     calls = mock_speak.call_args_list
     assert any("can't see" in str(c).lower() for c in calls)
+
+
+@pytest.mark.asyncio
+async def test_pipeline_passes_system_extra_to_brain():
+    settings = _make_settings()
+    interrupt = asyncio.Event()
+    conversation: list[dict] = []
+    tools = []
+    audio_buf = np.random.randn(16000).astype(np.float32)
+
+    with patch("jarvis.main.record_until_silence", new_callable=AsyncMock, return_value=audio_buf):
+        with patch("jarvis.main.transcribe", new_callable=AsyncMock, return_value="add milk to my todos"):
+            with patch("jarvis.main.needs_vision", return_value=False):
+                with patch("jarvis.main.think_and_act", new_callable=AsyncMock, return_value="Done.") as mock_think:
+                    with patch("jarvis.main.speak", new_callable=AsyncMock):
+                        await pipeline_iteration(
+                            interrupt, tools, conversation, settings,
+                            system_extra="## Your memories\n(none)",
+                        )
+
+    assert mock_think.call_args[1]["system_extra"] == "## Your memories\n(none)"

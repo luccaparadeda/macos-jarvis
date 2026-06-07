@@ -6,6 +6,7 @@ from jarvis.audio import record_until_silence
 from jarvis.brain import needs_vision, think_and_act
 from jarvis.config import Settings
 from jarvis.ears import transcribe
+from jarvis.harness import build_context, build_harness_tool_schemas, init_harness, set_available_shortcuts
 from jarvis.eyes import capture
 from jarvis.hands import (
     discover_shortcuts, build_tool_schema,
@@ -26,6 +27,7 @@ async def pipeline_iteration(
     conversation: list[dict],
     settings: Settings,
     listener=None,
+    system_extra: str = "",
 ) -> None:
     t0 = time.monotonic()
 
@@ -77,7 +79,10 @@ async def pipeline_iteration(
     t3 = time.monotonic()
     _log("Brain", f"Sending to Claude ({settings.anthropic_model})...")
     try:
-        response = await think_and_act(text, image, interrupt, tools, conversation, settings)
+        response = await think_and_act(
+            text, image, interrupt, tools, conversation, settings,
+            system_extra=system_extra,
+        )
     except Exception as e:
         _log("Brain", f"ERROR: {e}", t3)
         await speak("I couldn't reach my brain, try again.", interrupt, settings)
@@ -103,6 +108,8 @@ async def main() -> None:
     print("[Jarvis] Loading models and discovering shortcuts...")
 
     shortcut_names = await discover_shortcuts()
+    home = init_harness()
+    set_available_shortcuts(shortcut_names)
     tools = [
         build_tool_schema(shortcut_names),
         build_open_tool_schema(),
@@ -113,10 +120,13 @@ async def main() -> None:
         build_search_tool_schema(),
         build_maintenance_tool_schema(),
     ]
+    tools.extend(build_harness_tool_schemas())
     print(f"[Jarvis] Found {len(shortcut_names)} shortcuts: {', '.join(shortcut_names)}")
     print(f"[Jarvis] Brain: {settings.anthropic_model}")
+    print(f"[Jarvis] Harness ready at {home}")
 
     conversation: list[dict] = []
+    system_extra = build_context()
     wake_event = asyncio.Event()
     interrupt = asyncio.Event()
     loop = asyncio.get_running_loop()
@@ -132,7 +142,7 @@ async def main() -> None:
             interrupt.clear()
             print(">>> Wake word detected!")
 
-            await pipeline_iteration(interrupt, tools, conversation, settings, listener)
+            await pipeline_iteration(interrupt, tools, conversation, settings, listener, system_extra=system_extra)
             print()
     except KeyboardInterrupt:
         print("\n[Jarvis] Shutting down...")
