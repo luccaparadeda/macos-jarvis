@@ -1,16 +1,40 @@
 import asyncio
-import numpy as np
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from jarvis.main import pipeline_iteration
+import numpy as np
+import pytest
+
 from jarvis.config import Settings
+from jarvis.main import pipeline_iteration
 
 
 def _make_settings(**kwargs) -> Settings:
     defaults = {"anthropic_api_key": "test-key"}
     defaults.update(kwargs)
     return Settings(**defaults)
+
+
+def test_assemble_tools_with_shortcuts():
+    from jarvis.main import assemble_tools
+
+    tools = assemble_tools(["Add new event", "Take a Break"])
+    names = [t["function"]["name"] for t in tools]
+    assert names[0] == "run_apple_shortcut"
+    assert "open_item" in names
+    assert "search_files" in names
+    assert "system_maintenance" in names
+    # harness tools always present
+    assert {"save_memory", "save_skill", "read_harness_item", "manage_todos"} <= set(names)
+
+
+def test_assemble_tools_without_shortcuts():
+    from jarvis.main import assemble_tools
+
+    tools = assemble_tools([])
+    names = [t["function"]["name"] for t in tools]
+    assert "run_apple_shortcut" not in names
+    assert "open_item" in names
+    assert {"save_memory", "save_skill", "read_harness_item", "manage_todos"} <= set(names)
 
 
 @pytest.mark.asyncio
@@ -43,7 +67,9 @@ async def test_pipeline_with_vision():
         with patch("jarvis.main.transcribe", new_callable=AsyncMock, return_value="look at my desk"):
             with patch("jarvis.main.needs_vision", return_value=True):
                 with patch("jarvis.main.capture", new_callable=AsyncMock, return_value="base64img"):
-                    with patch("jarvis.main.think_and_act", new_callable=AsyncMock, return_value="I see a laptop.") as mock_think:
+                    with patch(
+                        "jarvis.main.think_and_act", new_callable=AsyncMock, return_value="I see a laptop."
+                    ) as mock_think:
                         with patch("jarvis.main.speak", new_callable=AsyncMock):
                             await pipeline_iteration(interrupt, tools, conversation, settings)
 
@@ -79,9 +105,15 @@ async def test_pipeline_camera_failure_falls_back_to_text():
     with patch("jarvis.main.record_until_silence", new_callable=AsyncMock, return_value=audio_buf):
         with patch("jarvis.main.transcribe", new_callable=AsyncMock, return_value="look at this"):
             with patch("jarvis.main.needs_vision", return_value=True):
-                with patch("jarvis.main.capture", new_callable=AsyncMock, side_effect=RuntimeError("Cannot open camera")):
+                with patch(
+                    "jarvis.main.capture", new_callable=AsyncMock, side_effect=RuntimeError("Cannot open camera")
+                ):
                     with patch("jarvis.main.speak", new_callable=AsyncMock) as mock_speak:
-                        with patch("jarvis.main.think_and_act", new_callable=AsyncMock, return_value="Sure, here's what I think."):
+                        with patch(
+                            "jarvis.main.think_and_act",
+                            new_callable=AsyncMock,
+                            return_value="Sure, here's what I think.",
+                        ):
                             await pipeline_iteration(interrupt, tools, conversation, settings)
 
     calls = mock_speak.call_args_list
@@ -156,7 +188,10 @@ async def test_pipeline_passes_system_extra_to_brain():
                 with patch("jarvis.main.think_and_act", new_callable=AsyncMock, return_value="Done.") as mock_think:
                     with patch("jarvis.main.speak", new_callable=AsyncMock):
                         await pipeline_iteration(
-                            interrupt, tools, conversation, settings,
+                            interrupt,
+                            tools,
+                            conversation,
+                            settings,
                             system_extra="## Your memories\n(none)",
                         )
 

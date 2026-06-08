@@ -1,10 +1,10 @@
-import asyncio
+from unittest.mock import patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch, MagicMock
 
-from jarvis.ears import transcribe
 from jarvis.config import Settings
+from jarvis.ears import transcribe
 
 
 def _make_settings(**kwargs) -> Settings:

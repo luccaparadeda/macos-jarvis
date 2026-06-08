@@ -22,6 +22,7 @@ def _get_model(settings: Settings):
     global _model
     if _model is None:
         from mlx_audio.tts import load_model
+
         _model = load_model(settings.kokoro_model)
     return _model
 

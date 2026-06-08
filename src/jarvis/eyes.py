@@ -3,7 +3,6 @@ import base64
 import functools
 
 import cv2
-import numpy as np
 
 from jarvis.config import Settings
 

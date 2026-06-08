@@ -6,7 +6,42 @@ on:
   pull_request:
     branches: [main]
 
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
+  quality:
+    # macOS because the dependency tree (mlx-*) only resolves on Apple Silicon
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v7
+
+      - name: Check lockfile is up to date
+        run: uv lock --check
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Ruff lint
+        run: uv run ruff check src tests
+
+      - name: Ruff format
+        run: uv run ruff format --check src tests
+
+      - name: Mypy
+        run: uv run mypy src
+
+      - name: Check package builds
+        run: uv build --sdist --wheel
+
   test:
     runs-on: macos-14  # Apple Silicon M1
     strategy:
@@ -26,22 +61,7 @@ jobs:
       - name: Install dependencies
         run: uv sync --group dev
 
-      - name: Run tests
+      - name: Run tests with coverage gate
         env:
           ANTHROPIC_API_KEY: test-key
-        run: uv run pytest -v
-
-  lint:
-    runs-on: macos-14
-    steps:
-      - uses: actions/checkout@v5
-
-      - uses: actions/setup-python@v6
-        with:
-          python-version: "3.12"
-
-      - name: Install uv
-        uses: astral-sh/setup-uv@v7
-
-      - name: Check package builds
-        run: uv build --sdist --wheel
+        run: uv run pytest -v --cov=jarvis --cov-report=term-missing --cov-fail-under=85

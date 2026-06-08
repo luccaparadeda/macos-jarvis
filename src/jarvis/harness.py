@@ -141,10 +141,9 @@ def list_todos() -> str:
 def _match_indexes(lines: list[str], query: str, open_only: bool) -> list[int]:
     q = query.lower().strip()
     return [
-        i for i, line in enumerate(lines)
-        if line.startswith("- [")
-        and q in _todo_text(line).lower()
-        and (not open_only or line.startswith("- [ ]"))
+        i
+        for i, line in enumerate(lines)
+        if line.startswith("- [") and q in _todo_text(line).lower() and (not open_only or line.startswith("- [ ]"))
     ]
 
 
@@ -182,6 +181,7 @@ async def _maybe_sync_todos() -> None:
     if SYNC_SHORTCUT not in _available_shortcuts:
         return
     from jarvis import hands
+
     try:
         contents = _todo_path().read_text(encoding="utf-8")
         await hands.run_shortcut(SYNC_SHORTCUT, input_text=contents)
@@ -301,7 +301,10 @@ def build_harness_tool_schemas() -> list[dict]:
                     "type": "object",
                     "properties": {
                         "action": {"type": "string", "enum": ["add", "complete", "remove", "list"]},
-                        "item": {"type": "string", "description": "Todo text (for add) or match text (for complete/remove). Omit for list."},
+                        "item": {
+                            "type": "string",
+                            "description": "Todo text (for add) or match text (for complete/remove). Omit for list.",
+                        },
                     },
                     "required": ["action"],
                 },

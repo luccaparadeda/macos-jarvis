@@ -48,7 +48,7 @@ async def record_until_silence(
         if threshold is None:
             calibration_samples.append(amplitude)
             if len(calibration_samples) >= CALIBRATION_CHUNKS:
-                ambient_est = np.mean(calibration_samples)
+                ambient_est = float(np.mean(calibration_samples))
                 threshold = _clamp_threshold(ambient_est * settings.silence_multiplier, settings)
                 print(f"[Audio] Calibrated: ambient={ambient_est:.4f}, threshold={threshold:.4f}")
             return

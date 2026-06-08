@@ -1,10 +1,11 @@
 import asyncio
+import functools
 import json
 
 import anthropic
 
-from jarvis.config import Settings
 from jarvis import hands, harness
+from jarvis.config import Settings
 
 SYSTEM_PROMPT = (
     "You are Jarvis, a helpful and concise macOS voice assistant. "
@@ -36,29 +37,25 @@ def _convert_tools_for_anthropic(tools: list[dict]) -> list[dict]:
     converted = []
     for tool in tools:
         fn = tool["function"]
-        converted.append({
-            "name": fn["name"],
-            "description": fn["description"],
-            "input_schema": fn["parameters"],
-        })
+        converted.append(
+            {
+                "name": fn["name"],
+                "description": fn["description"],
+                "input_schema": fn["parameters"],
+            }
+        )
     return converted
 
 
 async def _execute_tool(name: str, args: dict) -> str:
     if name == "run_apple_shortcut":
-        return await hands.run_shortcut(
-            args["shortcut_name"], input_text=args.get("input_text")
-        )
+        return await hands.run_shortcut(args["shortcut_name"], input_text=args.get("input_text"))
     elif name == "open_item":
-        return await hands.open_item(
-            args["path_or_app"], with_app=args.get("with_app")
-        )
+        return await hands.open_item(args["path_or_app"], with_app=args.get("with_app"))
     elif name == "search_files":
         return await hands.search_files(args["query"])
     elif name == "system_maintenance":
-        return await hands.system_maintenance(
-            args["action"], dry_run=args.get("dry_run", True)
-        )
+        return await hands.system_maintenance(args["action"], dry_run=args.get("dry_run", True))
     elif name == "save_memory":
         return harness.save_memory(args["name"], args["content"])
     elif name == "save_skill":
@@ -84,6 +81,7 @@ async def think_and_act(
 
     client = _get_client(settings)
 
+    user_content: str | list[dict]
     if image:
         user_content = [
             {"type": "text", "text": text},
@@ -115,9 +113,7 @@ async def think_and_act(
             kwargs["tools"] = anthropic_tools
 
         loop = asyncio.get_running_loop()
-        response = await loop.run_in_executor(
-            None, lambda: client.messages.create(**kwargs)
-        )
+        response = await loop.run_in_executor(None, functools.partial(client.messages.create, **kwargs))
 
         if response.stop_reason != "tool_use":
             text_parts = [b.text for b in response.content if b.type == "text"]
@@ -141,11 +137,13 @@ async def think_and_act(
             except Exception as e:
                 result = f"Error: {e}"
             print(f"  [Brain] Tool result: {str(result)[:120]}")
-            tool_results.append({
-                "type": "tool_result",
-                "tool_use_id": block.id,
-                "content": result,
-            })
+            tool_results.append(
+                {
+                    "type": "tool_result",
+                    "tool_use_id": block.id,
+                    "content": result,
+                }
+            )
 
         conversation.append({"role": "user", "content": tool_results})
         trimmed.append({"role": "user", "content": tool_results})

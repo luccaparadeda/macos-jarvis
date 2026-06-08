@@ -1,11 +1,11 @@
 import base64
-import asyncio
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch, MagicMock
 
-from jarvis.eyes import capture
 from jarvis.config import Settings
+from jarvis.eyes import capture
 
 
 def _make_settings(**kwargs) -> Settings:
@@ -17,6 +17,7 @@ def _make_settings(**kwargs) -> Settings:
 @pytest.mark.asyncio
 async def test_capture_returns_base64_jpeg():
     import cv2
+
     settings = _make_settings()
     fake_frame = np.zeros((480, 640, 3), dtype=np.uint8)
 

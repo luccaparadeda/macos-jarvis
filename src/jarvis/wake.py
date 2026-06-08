@@ -68,7 +68,8 @@ class WakeWordListener:
             self._model.reset()
 
     def _listen_loop(self) -> None:
-        self._model = Model(wakeword_models=[self._model_name], inference_framework="onnx")
+        model = Model(wakeword_models=[self._model_name], inference_framework="onnx")
+        self._model = model
 
         def audio_callback(indata, frames, time_info, status):
             if self._paused or not self._running:
@@ -77,8 +78,8 @@ class WakeWordListener:
             chunk = indata[:, 0]
             self._track_ambient(float(np.abs(chunk).mean()))
             audio_data = (chunk * 32767).astype(np.int16)
-            predictions = self._model.predict(audio_data)
-            for key, score in predictions.items():
+            predictions = model.predict(audio_data)
+            for score in predictions.values():
                 if score > self._threshold:
                     print(f"[Wake] Detected! ({score:.2f})")
                     self._loop.call_soon_threadsafe(self._wake_event.set)

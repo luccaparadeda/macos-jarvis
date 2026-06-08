@@ -1,9 +1,10 @@
 import asyncio
 import threading
 import time
+from unittest.mock import MagicMock, patch
+
 import numpy as np
 import pytest
-from unittest.mock import patch, MagicMock
 
 from jarvis.audio import record_until_silence
 from jarvis.config import Settings
@@ -56,6 +57,7 @@ async def test_record_stops_on_silence():
 
 def _stream_firing(chunk_sequence, gap_after_first=0.08):
     """Fake InputStream that fires the given chunks, sleeping after the first."""
+
     def fake_input_stream(**kwargs):
         stream = MagicMock()
         callback = kwargs["callback"]
@@ -74,6 +76,7 @@ def _stream_firing(chunk_sequence, gap_after_first=0.08):
         stream.__enter__ = enter
         stream.__exit__ = MagicMock(return_value=False)
         return stream
+
     return fake_input_stream
 
 

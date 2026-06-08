@@ -1,9 +1,9 @@
 import asyncio
-import json
-import pytest
 from unittest.mock import AsyncMock, MagicMock, patch
 
-from jarvis.brain import needs_vision, think_and_act, _convert_tools_for_anthropic
+import pytest
+
+from jarvis.brain import _convert_tools_for_anthropic, needs_vision, think_and_act
 from jarvis.config import Settings
 
 
@@ -16,6 +16,7 @@ def _make_settings(**kwargs) -> Settings:
 @pytest.fixture(autouse=True)
 def reset_client():
     import jarvis.brain
+
     jarvis.brain._client = None
     yield
     jarvis.brain._client = None
@@ -45,14 +46,16 @@ class TestNeedsVision:
 
 class TestConvertTools:
     def test_converts_openai_format_to_anthropic(self):
-        tools = [{
-            "type": "function",
-            "function": {
-                "name": "search_files",
-                "description": "Search files",
-                "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
-            },
-        }]
+        tools = [
+            {
+                "type": "function",
+                "function": {
+                    "name": "search_files",
+                    "description": "Search files",
+                    "parameters": {"type": "object", "properties": {"query": {"type": "string"}}},
+                },
+            }
+        ]
         result = _convert_tools_for_anthropic(tools)
         assert len(result) == 1
         assert result[0]["name"] == "search_files"
@@ -118,7 +121,12 @@ class TestThinkAndAct:
             with patch("jarvis.hands.run_shortcut", new_callable=AsyncMock) as mock_run:
                 mock_run.return_value = "Meeting 1, Meeting 2, Meeting 3"
                 result = await think_and_act(
-                    "what's on my calendar", None, interrupt, tools, conversation, settings,
+                    "what's on my calendar",
+                    None,
+                    interrupt,
+                    tools,
+                    conversation,
+                    settings,
                 )
 
         assert result == "You have 3 meetings today."
@@ -162,7 +170,12 @@ class TestThinkAndAct:
             mock_get_client.return_value = mock_client
 
             result = await think_and_act(
-                "look at my desk", "base64imgdata", interrupt, tools, conversation, settings,
+                "look at my desk",
+                "base64imgdata",
+                interrupt,
+                tools,
+                conversation,
+                settings,
             )
 
         assert result == "I see a laptop on the desk."
@@ -178,6 +191,7 @@ class TestHarnessDispatch:
     @pytest.mark.asyncio
     async def test_save_memory_dispatch(self):
         from jarvis.brain import _execute_tool
+
         with patch("jarvis.harness.save_memory", return_value="Saved memory 'music'") as mock_save:
             result = await _execute_tool("save_memory", {"name": "music", "content": "Prefers Spotify"})
         assert result == "Saved memory 'music'"
@@ -186,6 +200,7 @@ class TestHarnessDispatch:
     @pytest.mark.asyncio
     async def test_save_skill_dispatch(self):
         from jarvis.brain import _execute_tool
+
         with patch("jarvis.harness.save_skill", return_value="Saved skill 'greet'") as mock_save:
             result = await _execute_tool("save_skill", {"name": "greet", "content": "Be brief"})
         assert result == "Saved skill 'greet'"
@@ -194,6 +209,7 @@ class TestHarnessDispatch:
     @pytest.mark.asyncio
     async def test_read_harness_item_dispatch(self):
         from jarvis.brain import _execute_tool
+
         with patch("jarvis.harness.read_item", return_value="Prefers Spotify") as mock_read:
             result = await _execute_tool("read_harness_item", {"kind": "memory", "name": "music"})
         assert result == "Prefers Spotify"
@@ -202,6 +218,7 @@ class TestHarnessDispatch:
     @pytest.mark.asyncio
     async def test_manage_todos_dispatch(self):
         from jarvis.brain import _execute_tool
+
         with patch("jarvis.harness.manage_todos", new_callable=AsyncMock, return_value="Added todo: x") as mock_mt:
             result = await _execute_tool("manage_todos", {"action": "add", "item": "x"})
         assert result == "Added todo: x"
@@ -264,7 +281,12 @@ class TestSystemExtra:
             mock_get_client.return_value = mock_client
 
             await think_and_act(
-                "hello", None, interrupt, [], [], settings,
+                "hello",
+                None,
+                interrupt,
+                [],
+                [],
+                settings,
                 system_extra="## Your memories\n- music: Prefers Spotify",
             )
 
@@ -275,6 +297,7 @@ class TestSystemExtra:
     @pytest.mark.asyncio
     async def test_no_system_extra_keeps_prompt_unchanged(self):
         from jarvis.brain import SYSTEM_PROMPT
+
         settings = _make_settings()
         interrupt = asyncio.Event()
 

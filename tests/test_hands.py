@@ -1,11 +1,17 @@
-import json
-import pytest
 from unittest.mock import AsyncMock, patch
 
-from jarvis.hands import discover_shortcuts, run_shortcut, build_tool_schema
+import pytest
+
 from jarvis.hands import (
-    open_item, search_files, system_maintenance,
-    build_open_tool_schema, build_search_tool_schema, build_maintenance_tool_schema,
+    build_maintenance_tool_schema,
+    build_open_tool_schema,
+    build_search_tool_schema,
+    build_tool_schema,
+    discover_shortcuts,
+    open_item,
+    run_shortcut,
+    search_files,
+    system_maintenance,
 )
 
 
@@ -61,8 +67,13 @@ async def test_run_shortcut_success():
 
     assert result == "Event created"
     mock_exec.assert_called_once_with(
-        "shortcuts", "run", "Add new event", "--input-text", "Meeting at 3pm",
-        stdout=-1, stderr=-1,
+        "shortcuts",
+        "run",
+        "Add new event",
+        "--input-text",
+        "Meeting at 3pm",
+        stdout=-1,
+        stderr=-1,
     )
 
 
@@ -77,8 +88,11 @@ async def test_run_shortcut_no_input():
 
     assert result == "Done"
     mock_exec.assert_called_once_with(
-        "shortcuts", "run", "Take a Break",
-        stdout=-1, stderr=-1,
+        "shortcuts",
+        "run",
+        "Take a Break",
+        stdout=-1,
+        stderr=-1,
     )
 
 
@@ -104,6 +118,7 @@ async def test_open_item_app():
     assert "opened" in result.lower()
     mock_exec.assert_called_once_with("open", "Spotify", stdout=-1, stderr=-1)
 
+
 @pytest.mark.asyncio
 async def test_open_item_file_with_app():
     mock_process = AsyncMock()
@@ -111,7 +126,9 @@ async def test_open_item_file_with_app():
     mock_process.returncode = 0
     with patch("asyncio.create_subprocess_exec", return_value=mock_process) as mock_exec:
         result = await open_item("/Users/test/doc.numbers", with_app="Numbers")
+    assert "opened" in result.lower()
     mock_exec.assert_called_once_with("open", "-a", "Numbers", "/Users/test/doc.numbers", stdout=-1, stderr=-1)
+
 
 @pytest.mark.asyncio
 async def test_open_item_failure():
@@ -121,6 +138,7 @@ async def test_open_item_failure():
     with patch("asyncio.create_subprocess_exec", return_value=mock_process):
         result = await open_item("/nonexistent/file.txt")
     assert result.startswith("Error:")
+
 
 @pytest.mark.asyncio
 async def test_search_files():
@@ -132,6 +150,7 @@ async def test_search_files():
     assert "/Users/test/invoice.pdf" in result
     assert "/Users/test/Downloads/invoice2.pdf" in result
 
+
 @pytest.mark.asyncio
 async def test_search_files_no_results():
     mock_process = AsyncMock()
@@ -140,6 +159,7 @@ async def test_search_files_no_results():
     with patch("asyncio.create_subprocess_exec", return_value=mock_process):
         result = await search_files("name:nonexistent.pdf")
     assert "no files found" in result.lower()
+
 
 @pytest.mark.asyncio
 async def test_system_maintenance_dry_run():
@@ -152,6 +172,7 @@ async def test_system_maintenance_dry_run():
     args = mock_exec.call_args[0]
     assert "--dry-run" in args
 
+
 @pytest.mark.asyncio
 async def test_system_maintenance_status():
     mock_process = AsyncMock()
@@ -163,15 +184,18 @@ async def test_system_maintenance_status():
     args = mock_exec.call_args[0]
     assert "--dry-run" not in args
 
+
 def test_build_open_tool_schema():
     schema = build_open_tool_schema()
     assert schema["function"]["name"] == "open_item"
     assert "path_or_app" in schema["function"]["parameters"]["properties"]
 
+
 def test_build_search_tool_schema():
     schema = build_search_tool_schema()
     assert schema["function"]["name"] == "search_files"
     assert "query" in schema["function"]["parameters"]["properties"]
+
 
 def test_build_maintenance_tool_schema():
     schema = build_maintenance_tool_schema()

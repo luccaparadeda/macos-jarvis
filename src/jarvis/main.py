@@ -1,17 +1,19 @@
 import asyncio
-import sys
 import time
 
 from jarvis.audio import record_until_silence
 from jarvis.brain import needs_vision, think_and_act
 from jarvis.config import Settings
 from jarvis.ears import transcribe
-from jarvis.harness import build_context, build_harness_tool_schemas, init_harness, set_available_shortcuts
 from jarvis.eyes import capture
 from jarvis.hands import (
-    discover_shortcuts, build_tool_schema,
-    build_open_tool_schema, build_search_tool_schema, build_maintenance_tool_schema,
+    build_maintenance_tool_schema,
+    build_open_tool_schema,
+    build_search_tool_schema,
+    build_tool_schema,
+    discover_shortcuts,
 )
+from jarvis.harness import build_context, build_harness_tool_schemas, init_harness, set_available_shortcuts
 from jarvis.mouth import speak
 from jarvis.wake import start_listener, stop_listener
 
@@ -86,7 +88,12 @@ async def pipeline_iteration(
     _log("Brain", f"Sending to Claude ({settings.anthropic_model})...")
     try:
         response = await think_and_act(
-            text, image, interrupt, tools, conversation, settings,
+            text,
+            image,
+            interrupt,
+            tools,
+            conversation,
+            settings,
             system_extra=system_extra,
         )
     except Exception as e:
@@ -113,24 +120,27 @@ async def pipeline_iteration(
     _log("Total", "Pipeline complete", t0)
 
 
+def assemble_tools(shortcut_names: list[str]) -> list[dict]:
+    tools = [build_tool_schema(shortcut_names)] if shortcut_names else []
+    tools.extend(
+        [
+            build_open_tool_schema(),
+            build_search_tool_schema(),
+            build_maintenance_tool_schema(),
+        ]
+    )
+    tools.extend(build_harness_tool_schemas())
+    return tools
+
+
 async def main() -> None:
-    settings = Settings()
+    settings = Settings()  # type: ignore[call-arg]  # anthropic_api_key comes from env/.env
     print("[Jarvis] Loading models and discovering shortcuts...")
 
     shortcut_names = await discover_shortcuts()
     home = init_harness()
     set_available_shortcuts(shortcut_names)
-    tools = [
-        build_tool_schema(shortcut_names),
-        build_open_tool_schema(),
-        build_search_tool_schema(),
-        build_maintenance_tool_schema(),
-    ] if shortcut_names else [
-        build_open_tool_schema(),
-        build_search_tool_schema(),
-        build_maintenance_tool_schema(),
-    ]
-    tools.extend(build_harness_tool_schemas())
+    tools = assemble_tools(shortcut_names)
     print(f"[Jarvis] Found {len(shortcut_names)} shortcuts: {', '.join(shortcut_names)}")
     print(f"[Jarvis] Brain: {settings.anthropic_model}")
     print(f"[Jarvis] Harness ready at {home}")

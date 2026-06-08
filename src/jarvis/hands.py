@@ -4,7 +4,8 @@ import subprocess
 
 async def discover_shortcuts() -> list[str]:
     proc = await asyncio.create_subprocess_exec(
-        "shortcuts", "list",
+        "shortcuts",
+        "list",
         stdout=subprocess.PIPE,
         stderr=subprocess.PIPE,
     )
@@ -70,8 +71,14 @@ def build_open_tool_schema() -> dict:
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "path_or_app": {"type": "string", "description": "File path, folder path, or application name to open"},
-                    "with_app": {"type": "string", "description": "Optional: open the file with a specific application"},
+                    "path_or_app": {
+                        "type": "string",
+                        "description": "File path, folder path, or application name to open",
+                    },
+                    "with_app": {
+                        "type": "string",
+                        "description": "Optional: open the file with a specific application",
+                    },
                 },
                 "required": ["path_or_app"],
             },
@@ -84,11 +91,18 @@ def build_search_tool_schema() -> dict:
         "type": "function",
         "function": {
             "name": "search_files",
-            "description": "Search for files on macOS using Spotlight (mdfind). Searches file names and contents instantly.",
+            "description": (
+                "Search for files on macOS using Spotlight (mdfind). Searches file names and contents instantly."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
-                    "query": {"type": "string", "description": "Search query — file name, content keywords, or metadata filter (e.g. 'name:invoice.pdf')"},
+                    "query": {
+                        "type": "string",
+                        "description": (
+                            "Search query — file name, content keywords, or metadata filter (e.g. 'name:invoice.pdf')"
+                        ),
+                    },
                 },
                 "required": ["query"],
             },
@@ -101,12 +115,18 @@ def build_maintenance_tool_schema() -> dict:
         "type": "function",
         "function": {
             "name": "system_maintenance",
-            "description": "Run Mac system maintenance using Mole (mo). Clean caches, analyze disk usage, check system status, or purge build artifacts. Destructive commands default to dry-run mode for safety.",
+            "description": (
+                "Run Mac system maintenance using Mole (mo). Clean caches, analyze disk usage, check system "
+                "status, or purge build artifacts. Destructive commands default to dry-run mode for safety."
+            ),
             "parameters": {
                 "type": "object",
                 "properties": {
                     "action": {"type": "string", "enum": ["clean", "analyze", "status", "purge", "optimize"]},
-                    "dry_run": {"type": "boolean", "description": "If true (default), show what would be done without doing it."},
+                    "dry_run": {
+                        "type": "boolean",
+                        "description": "If true (default), show what would be done without doing it.",
+                    },
                 },
                 "required": ["action"],
             },
@@ -115,10 +135,7 @@ def build_maintenance_tool_schema() -> dict:
 
 
 async def open_item(path_or_app: str, with_app: str | None = None) -> str:
-    if with_app:
-        cmd = ["open", "-a", with_app, path_or_app]
-    else:
-        cmd = ["open", path_or_app]
+    cmd = ["open", "-a", with_app, path_or_app] if with_app else ["open", path_or_app]
     proc = await asyncio.create_subprocess_exec(*cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     stdout, stderr = await proc.communicate()
     if proc.returncode != 0:

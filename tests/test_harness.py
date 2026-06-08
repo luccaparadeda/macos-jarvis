@@ -279,7 +279,9 @@ class TestManageTodosAndSync:
     async def test_sync_failure_does_not_break_result(self, jarvis_home):
         harness.init_harness()
         harness.set_available_shortcuts(["Sync Jarvis Todos"])
-        with patch("jarvis.hands.run_shortcut", new_callable=AsyncMock, side_effect=FileNotFoundError("shortcuts missing")):
+        with patch(
+            "jarvis.hands.run_shortcut", new_callable=AsyncMock, side_effect=FileNotFoundError("shortcuts missing")
+        ):
             result = await harness.manage_todos("add", "buy milk")
         assert result == "Added todo: buy milk"
 
