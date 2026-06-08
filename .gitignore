@@ -6,3 +6,5 @@ dist/
 *.egg-info/
 .python-version
 .DS_Store
+.coverage
+htmlcov/
