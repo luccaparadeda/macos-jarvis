@@ -83,30 +83,40 @@ class WakeWordListener:
                     print(f"[Wake] Detected! ({score:.2f})")
                     self._loop.call_soon_threadsafe(self._wake_event.set)
 
-        self._stream = sd.InputStream(
-            samplerate=SAMPLE_RATE,
-            channels=1,
-            blocksize=CHUNK_SIZE,
-            dtype="float32",
-            callback=audio_callback,
-        )
+        def open_stream() -> sd.InputStream:
+            stream = sd.InputStream(
+                samplerate=SAMPLE_RATE,
+                channels=1,
+                blocksize=CHUNK_SIZE,
+                dtype="float32",
+                callback=audio_callback,
+            )
+            stream.start()
+            return stream
+
         try:
-            self._stream.start()
+            self._stream = open_stream()
             while self._running:
-                # Release the mic while recording; reacquire on resume.
-                if self._paused and self._stream.active:
+                # Release the mic while recording/speaking; reacquire on resume.
+                # NOTE: always close + recreate — restarting a stopped stream
+                # after another stream cycled the device yields a zombie stream
+                # on macOS (PaMacCore err -50, zero callbacks delivered).
+                if self._paused and self._stream is not None:
                     self._stream.stop()
-                elif not self._paused and not self._stream.active:
-                    self._stream.start()
+                    self._stream.close()
+                    self._stream = None
+                elif not self._paused and self._stream is None:
+                    self._stream = open_stream()
                 sd.sleep(100)
         except (KeyboardInterrupt, OSError):
             pass
         finally:
-            try:
-                self._stream.stop()
-                self._stream.close()
-            except Exception:
-                pass
+            if self._stream is not None:
+                try:
+                    self._stream.stop()
+                    self._stream.close()
+                except Exception:
+                    pass
 
 
 async def start_listener(
